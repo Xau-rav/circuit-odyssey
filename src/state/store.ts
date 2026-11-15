@@ -9,7 +9,8 @@ import { analyzeWaveform } from '../engines/measurement/analysis'
 import { SimTransport } from '../engines/measurement/transports/SimTransport'
 import { WebSerialTransport } from '../engines/measurement/transports/WebSerialTransport'
 import type { MeasurementTransport } from '../engines/measurement/transports/types'
-import { autoSetPlacements, computePlacement } from '../engines/placement'
+import { autoSetPlacements } from '../engines/placement'
+import { validatePlacementAttempt } from '../engines/placement/validate'
 import {
   fitWires,
   generateWires,
@@ -73,10 +74,13 @@ interface OdysseyState {
   showWires: boolean
   /** Component currently dragged from tray / board (for DnD) */
   dragComponentId: string | null
+  /** Breadboard status line (template `#status`) */
+  boardStatus: { message: string; error: boolean }
 
   setMode: (mode: AppMode) => void
   setShowWires: (show: boolean) => void
   setDragComponentId: (id: string | null) => void
+  setBoardStatus: (message: string, error?: boolean) => void
   pushHistory: () => void
   undo: () => void
   redo: () => void
@@ -153,10 +157,16 @@ export const useStore = create<OdysseyState>((set, get) => {
     streaming: false,
     showWires: true,
     dragComponentId: null,
+    boardStatus: {
+      message: 'Select or drag a part to begin.',
+      error: false,
+    },
 
     setMode: (mode) => set({ mode }),
     setShowWires: (show) => set({ showWires: show }),
     setDragComponentId: (id) => set({ dragComponentId: id }),
+    setBoardStatus: (message, error = false) =>
+      set({ boardStatus: { message, error } }),
 
     pushHistory: () => {
       const { project, undoStack } = get()
@@ -206,6 +216,15 @@ export const useStore = create<OdysseyState>((set, get) => {
       get().pushHistory()
       const { project } = get()
       const placements = autoSetPlacements(board, project.circuit.components)
+      if (!placements.length) {
+        set({
+          boardStatus: {
+            message: 'Auto-set ran out of space.',
+            error: true,
+          },
+        })
+        return
+      }
       const wires = generateWires(
         board,
         project.circuit,
@@ -216,7 +235,13 @@ export const useStore = create<OdysseyState>((set, get) => {
         ...project,
         breadboard: { ...project.breadboard, placements, wires },
       })
-      set({ project: next })
+      set({
+        project: next,
+        boardStatus: {
+          message: `Placed ${placements.length} parts and ${wires.filter((w) => w.valid).length} jumpers.`,
+          error: false,
+        },
+      })
     },
 
     generateWires: () => {
@@ -253,22 +278,43 @@ export const useStore = create<OdysseyState>((set, get) => {
       })
     },
 
-    select: (ids) => set({ selectedIds: ids }),
+    select: (ids) => {
+      const { project } = get()
+      const ref = project.circuit.components.find((c) => c.id === ids[0])?.refDes
+      set({
+        selectedIds: ids,
+        boardStatus: ref
+          ? {
+              message: `Selected ${ref}. Choose an anchor hole.`,
+              error: false,
+            }
+          : get().boardStatus,
+      })
+    },
     highlight: (ids) => set({ highlightedIds: ids }),
 
     moveComponent: (componentId, anchorHoleId) => {
       const { project } = get()
       const comp = project.circuit.components.find((c) => c.id === componentId)
-      if (!comp) return
-      const placement = computePlacement(board, comp, anchorHoleId, comp.rotation)
-      if (!placement) return
+      if (!comp) {
+        set({
+          boardStatus: { message: 'Select a part first.', error: true },
+        })
+        return
+      }
 
-      const occupied = new Set(
-        project.breadboard.placements
-          .filter((p) => p.componentId !== componentId)
-          .flatMap((p) => p.occupiedHoleIds),
+      const result = validatePlacementAttempt(
+        board,
+        project,
+        comp,
+        anchorHoleId,
+        comp.rotation,
       )
-      if (placement.occupiedHoleIds.some((h) => occupied.has(h))) return
+      if (!result.ok) {
+        set({ boardStatus: { message: result.reason, error: true } })
+        return
+      }
+      const placement = result.placement
 
       get().pushHistory()
       const old = project.breadboard.placements.find(
@@ -283,7 +329,10 @@ export const useStore = create<OdysseyState>((set, get) => {
         placement,
       ]
       const wires = markAffectedWires(project.breadboard.wires, affected)
-      const assembly = reviseAffectedSteps(project.assembly, [componentId, ...wires.map((w) => w.id)])
+      const assembly = reviseAffectedSteps(project.assembly, [
+        componentId,
+        ...wires.map((w) => w.id),
+      ])
       set({
         project: {
           ...project,
@@ -298,6 +347,11 @@ export const useStore = create<OdysseyState>((set, get) => {
             ),
           },
         },
+        boardStatus: {
+          message: `${comp.refDes} placed at ${anchorHoleId}.`,
+          error: false,
+        },
+        selectedIds: [componentId],
       })
     },
 
@@ -321,20 +375,32 @@ export const useStore = create<OdysseyState>((set, get) => {
       let placements = project.breadboard.placements
       let wires: Wire[] = project.breadboard.wires
       if (existing) {
-        const next = computePlacement(
+        const check = validatePlacementAttempt(
           board,
+          {
+            ...project,
+            breadboard: {
+              ...project.breadboard,
+              placements: project.breadboard.placements.filter(
+                (p) => p.componentId !== id,
+              ),
+            },
+          },
           { ...comp, rotation: nextRot },
           existing.anchorHoleId,
           nextRot,
         )
-        if (!next) return
+        if (!check.ok) {
+          set({ boardStatus: { message: check.reason, error: true } })
+          return
+        }
         placements = [
           ...placements.filter((p) => p.componentId !== id),
-          next,
+          check.placement,
         ]
         wires = markAffectedWires(wires, [
           ...existing.occupiedHoleIds,
-          ...next.occupiedHoleIds,
+          ...check.placement.occupiedHoleIds,
         ])
       }
       set({
@@ -349,6 +415,10 @@ export const useStore = create<OdysseyState>((set, get) => {
           breadboard: { ...project.breadboard, placements, wires },
           assembly: reviseAffectedSteps(project.assembly, [id]),
         },
+        boardStatus: {
+          message: `${comp.refDes} rotated ${comp.type === 'ne555' ? '180°' : '90°'}.`,
+          error: false,
+        },
       })
     },
 
@@ -358,6 +428,8 @@ export const useStore = create<OdysseyState>((set, get) => {
       if (!id) return
       const existing = project.breadboard.placements.find((p) => p.componentId === id)
       if (!existing) return
+      const ref =
+        project.circuit.components.find((c) => c.id === id)?.refDes ?? id
       get().pushHistory()
       const wires = markAffectedWires(
         project.breadboard.wires,
@@ -380,6 +452,10 @@ export const useStore = create<OdysseyState>((set, get) => {
               c.id === id ? { ...c, placement: undefined } : c,
             ),
           },
+        },
+        boardStatus: {
+          message: `${ref} moved back to the tray.`,
+          error: false,
         },
       })
     },

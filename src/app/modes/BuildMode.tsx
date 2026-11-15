@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { BreadboardBoard } from '../../ui/breadboard/BreadboardBoard'
 import { AssemblyPanel } from '../../ui/panels/AssemblyPanel'
 import { PartsTray } from '../../ui/panels/PartsTray'
@@ -31,24 +31,15 @@ export function BuildMode() {
   const rotateSelected = useStore((s) => s.rotateSelected)
   const removeSelected = useStore((s) => s.removeSelected)
   const importJson = useStore((s) => s.importJson)
-  const project = useStore((s) => s.project)
-  const selectedIds = useStore((s) => s.selectedIds)
   const showWires = useStore((s) => s.showWires)
   const setShowWires = useStore((s) => s.setShowWires)
+  const boardStatus = useStore((s) => s.boardStatus)
   const [source, setSource] = useState(TIMER_NETLIST)
   const [importMessage, setImportMessage] = useState(
     'Load an example, then Auto-set.',
   )
   const [importError, setImportError] = useState(false)
   const [showProposed, setShowProposed] = useState(true)
-
-  const status = useMemo(() => {
-    const sel = project.circuit.components.find((c) => c.id === selectedIds[0])
-    if (sel) return `Selected ${sel.refDes}. Choose an anchor hole or Auto-set.`
-    return `${project.breadboard.placements.length} parts placed · ${
-      project.breadboard.wires.filter((w) => w.valid).length
-    } jumpers.`
-  }, [project, selectedIds])
 
   const loadTimer = (fault: boolean) => {
     load555(fault)
@@ -202,8 +193,12 @@ export function BuildMode() {
           <div className="scroll">
             <BreadboardBoard showProposed={showProposed} />
           </div>
-          <p className="status" role="status">
-            {status}
+          <p
+            className={`status${boardStatus.error ? ' error' : ''}`}
+            role="status"
+            aria-live="polite"
+          >
+            {boardStatus.message}
           </p>
         </section>
 

@@ -1,9 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { getDefinition } from '../../components/library/definitions'
-import {
-  computePlacement,
-  isPlacementFree,
-} from '../../engines/placement'
+import { validatePlacementAttempt } from '../../engines/placement/validate'
 import { useStore } from '../../state/store'
 import {
   BOARD_PX_H,
@@ -34,69 +31,87 @@ export function BreadboardBoard({
   const select = useStore((s) => s.select)
   const moveComponent = useStore((s) => s.moveComponent)
   const setDragComponentId = useStore((s) => s.setDragComponentId)
+  const setBoardStatus = useStore((s) => s.setBoardStatus)
   const [inspectId, setInspectId] = useState<string | null>(null)
   const [previewAnchor, setPreviewAnchor] = useState<string | null>(null)
 
   const heldId = dragComponentId ?? null
 
-  const occupied = useMemo(() => {
-    const s = new Set<string>()
-    for (const p of project.breadboard.placements) {
-      if (heldId && p.componentId === heldId) continue
-      p.occupiedHoleIds.forEach((h) => s.add(h))
-    }
-    return s
-  }, [project.breadboard.placements, heldId])
-
   const heldComp = heldId
     ? project.circuit.components.find((c) => c.id === heldId) ?? null
     : null
 
+  const projectForPreview = useMemo(() => {
+    if (!heldId) return project
+    return {
+      ...project,
+      breadboard: {
+        ...project.breadboard,
+        placements: project.breadboard.placements.filter(
+          (p) => p.componentId !== heldId,
+        ),
+      },
+    }
+  }, [project, heldId])
+
   const preview = useMemo(() => {
     if (!heldComp || !previewAnchor) return null
-    const placement = computePlacement(
+    const result = validatePlacementAttempt(
       board,
+      projectForPreview,
       heldComp,
       previewAnchor,
       heldComp.rotation,
     )
-    if (!placement) return { valid: false as const, holes: [previewAnchor] }
-    const free = isPlacementFree(placement, occupied)
-    return {
-      valid: free,
-      holes: placement.occupiedHoleIds,
+    if (!result.ok) {
+      return { valid: false as const, holes: [previewAnchor], reason: result.reason }
     }
-  }, [heldComp, previewAnchor, board, occupied])
+    return {
+      valid: true as const,
+      holes: result.placement.occupiedHoleIds,
+      reason: null as string | null,
+    }
+  }, [heldComp, previewAnchor, board, projectForPreview])
 
   const validAnchors = useMemo(() => {
     if (!heldComp) return new Set<string>()
     const out = new Set<string>()
     const def = getDefinition(heldComp.type)
+    const tryId = (id: string) => {
+      const r = validatePlacementAttempt(
+        board,
+        projectForPreview,
+        heldComp,
+        id,
+        heldComp.rotation,
+      )
+      if (r.ok) out.add(id)
+    }
     if (def.footprint.straddlesChannel) {
-      for (let c = 1; c <= VIS_COLS - 3; c++) {
-        const id = `E${c}`
-        const p = computePlacement(board, heldComp, id, heldComp.rotation)
-        if (p && isPlacementFree(p, occupied)) out.add(id)
-      }
+      for (let c = 1; c <= VIS_COLS - 3; c++) tryId(`E${c}`)
     } else if (def.category === 'power') {
       for (const rail of ['top+', 'top-', 'bottom+', 'bottom-'] as const) {
-        for (let c = 1; c <= VIS_COLS; c++) {
-          const id = `rail-${rail}-${c}`
-          const p = computePlacement(board, heldComp, id, 0)
-          if (p && isPlacementFree(p, occupied)) out.add(id)
-        }
+        for (let c = 1; c <= VIS_COLS; c++) tryId(`rail-${rail}-${c}`)
       }
     } else {
       for (const row of VIS_ROWS) {
-        for (let c = 1; c <= VIS_COLS; c++) {
-          const id = `${row}${c}`
-          const p = computePlacement(board, heldComp, id, heldComp.rotation)
-          if (p && isPlacementFree(p, occupied)) out.add(id)
-        }
+        for (let c = 1; c <= VIS_COLS; c++) tryId(`${row}${c}`)
       }
     }
     return out
-  }, [heldComp, board, occupied])
+  }, [heldComp, board, projectForPreview])
+
+  useEffect(() => {
+    if (!heldComp) return
+    if (preview?.reason) {
+      setBoardStatus(preview.reason, true)
+    } else if (heldId) {
+      setBoardStatus(
+        `Holding ${heldComp.refDes}. Drop on an outlined anchor.`,
+        false,
+      )
+    }
+  }, [preview, heldComp, heldId, setBoardStatus])
 
   const pinAt = useMemo(() => {
     const m = new Map<
