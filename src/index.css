@@ -1,0 +1,73 @@
+@import 'tailwindcss';
+
+:root {
+  --co-bg: #f4f7f9;
+  --co-surface: #ffffff;
+  --co-surface-2: #eef3f6;
+  --co-border: #c9d6de;
+  --co-border-strong: #9bb0bd;
+  --co-text: #1a2b36;
+  --co-text-muted: #5a6f7c;
+  --co-teal: #0f766e;
+  --co-teal-soft: #ccfbf1;
+  --co-blue: #1d4e89;
+  --co-blue-soft: #dbeafe;
+  --co-accent: #0d9488;
+  --co-danger: #b91c1c;
+  --co-warning: #b45309;
+  --co-ok: #15803d;
+  --co-bb-body: #e8edf0;
+  --co-bb-hole: #2a3540;
+  --co-rail-red: #dc2626;
+  --co-rail-black: #1f2937;
+  --co-shadow: 0 1px 2px rgba(26, 43, 54, 0.06), 0 8px 24px rgba(26, 43, 54, 0.06);
+  --font-sans: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  --font-display: 'Outfit', 'IBM Plex Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--co-text);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #d9f3ef 0%, transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, #dce8f5 0%, transparent 50%),
+    var(--co-bg);
+  overflow: hidden;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #b7c6d0;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
