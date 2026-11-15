@@ -16,6 +16,12 @@ export default function App() {
   const removeSelected = useStore((s) => s.removeSelected)
 
   useEffect(() => {
+    const endDrag = () => useStore.getState().setDragComponentId(null)
+    window.addEventListener('dragend', endDrag)
+    return () => window.removeEventListener('dragend', endDrag)
+  }, [])
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const meta = e.metaKey || e.ctrlKey
       const typing =
@@ -54,6 +60,7 @@ export default function App() {
       } else if (e.key === 'Escape') {
         useStore.getState().select([])
         useStore.getState().highlight([])
+        useStore.getState().setDragComponentId(null)
       }
     }
     window.addEventListener('keydown', onKey)

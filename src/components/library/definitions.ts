@@ -48,9 +48,9 @@ export const COMPONENT_LIBRARY: Record<string, ComponentDefinition> = {
     package: 'axial-2',
     pins: [
       { id: 'a', name: 'A', number: 1, electrical: 'passive', offset: { x: 0, y: 0 } },
-      { id: 'b', name: 'B', number: 2, electrical: 'passive', offset: { x: 3, y: 0 } },
+      { id: 'b', name: 'B', number: 2, electrical: 'passive', offset: { x: 1, y: 0 } },
     ],
-    footprint: { cols: 4, rows: 1 },
+    footprint: { cols: 2, rows: 1 },
     defaultValue: '1k',
     color: '#ffc174',
   },

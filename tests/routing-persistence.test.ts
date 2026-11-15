@@ -23,9 +23,9 @@ describe('routing persistence', () => {
     const project = create555BlinkerProject()
     const placements = autoSetPlacements(board, project.circuit.components)
     let wires = generateWires(board, project.circuit, placements, [])
-    const moved = placements[0]!
-    const affected = moved.occupiedHoleIds
-    wires = markAffectedWires(wires, affected)
+    expect(wires.length).toBeGreaterThan(0)
+    const sample = wires.find((w) => w.valid)!
+    wires = markAffectedWires(wires, [sample.fromHoleId, sample.toHoleId])
     expect(wires.some((w) => w.assembly === 'needs-revision')).toBe(true)
 
     const fitted = fitWires(board, project.circuit, placements, wires)

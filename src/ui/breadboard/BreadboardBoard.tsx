@@ -1,5 +1,9 @@
 import { useMemo, useState } from 'react'
 import { getDefinition } from '../../components/library/definitions'
+import {
+  computePlacement,
+  isPlacementFree,
+} from '../../engines/placement'
 import { useStore } from '../../state/store'
 import {
   BOARD_PX_H,
@@ -21,13 +25,78 @@ export function BreadboardBoard({
   showProposed?: boolean
 }) {
   const project = useStore((s) => s.project)
+  const board = useStore((s) => s.board)
   const selectedIds = useStore((s) => s.selectedIds)
   const highlightedIds = useStore((s) => s.highlightedIds)
   const probeTarget = useStore((s) => s.probeTarget)
+  const showWires = useStore((s) => s.showWires)
+  const dragComponentId = useStore((s) => s.dragComponentId)
   const select = useStore((s) => s.select)
   const moveComponent = useStore((s) => s.moveComponent)
-  const [held, setHeld] = useState<string | null>(null)
+  const setDragComponentId = useStore((s) => s.setDragComponentId)
   const [inspectId, setInspectId] = useState<string | null>(null)
+  const [previewAnchor, setPreviewAnchor] = useState<string | null>(null)
+
+  const heldId = dragComponentId ?? null
+
+  const occupied = useMemo(() => {
+    const s = new Set<string>()
+    for (const p of project.breadboard.placements) {
+      if (heldId && p.componentId === heldId) continue
+      p.occupiedHoleIds.forEach((h) => s.add(h))
+    }
+    return s
+  }, [project.breadboard.placements, heldId])
+
+  const heldComp = heldId
+    ? project.circuit.components.find((c) => c.id === heldId) ?? null
+    : null
+
+  const preview = useMemo(() => {
+    if (!heldComp || !previewAnchor) return null
+    const placement = computePlacement(
+      board,
+      heldComp,
+      previewAnchor,
+      heldComp.rotation,
+    )
+    if (!placement) return { valid: false as const, holes: [previewAnchor] }
+    const free = isPlacementFree(placement, occupied)
+    return {
+      valid: free,
+      holes: placement.occupiedHoleIds,
+    }
+  }, [heldComp, previewAnchor, board, occupied])
+
+  const validAnchors = useMemo(() => {
+    if (!heldComp) return new Set<string>()
+    const out = new Set<string>()
+    const def = getDefinition(heldComp.type)
+    if (def.footprint.straddlesChannel) {
+      for (let c = 1; c <= VIS_COLS - 3; c++) {
+        const id = `E${c}`
+        const p = computePlacement(board, heldComp, id, heldComp.rotation)
+        if (p && isPlacementFree(p, occupied)) out.add(id)
+      }
+    } else if (def.category === 'power') {
+      for (const rail of ['top+', 'top-', 'bottom+', 'bottom-'] as const) {
+        for (let c = 1; c <= VIS_COLS; c++) {
+          const id = `rail-${rail}-${c}`
+          const p = computePlacement(board, heldComp, id, 0)
+          if (p && isPlacementFree(p, occupied)) out.add(id)
+        }
+      }
+    } else {
+      for (const row of VIS_ROWS) {
+        for (let c = 1; c <= VIS_COLS; c++) {
+          const id = `${row}${c}`
+          const p = computePlacement(board, heldComp, id, heldComp.rotation)
+          if (p && isPlacementFree(p, occupied)) out.add(id)
+        }
+      }
+    }
+    return out
+  }, [heldComp, board, occupied])
 
   const pinAt = useMemo(() => {
     const m = new Map<
@@ -53,18 +122,63 @@ export function BreadboardBoard({
     return m
   }, [project])
 
-  const placeSelectedOrHeld = (holeId: string) => {
-    const id = held ?? selectedIds[0]
+  const tryPlace = (holeId: string) => {
+    const id = heldId ?? selectedIds[0]
     if (!id) return
-    const comp = project.circuit.components.find((c) => c.id === id)
-    if (!comp) return
-    // Power parts: allow rail holes; others need terminal
     moveComponent(id, holeId)
-    setHeld(null)
+    setDragComponentId(null)
+    setPreviewAnchor(null)
+  }
+
+  const onHoleDragOver = (e: React.DragEvent, holeId: string) => {
+    if (!heldId && !e.dataTransfer.types.includes('text/plain')) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setPreviewAnchor(holeId)
+  }
+
+  const onHoleDrop = (e: React.DragEvent, holeId: string) => {
+    e.preventDefault()
+    const id = e.dataTransfer.getData('text/plain') || heldId
+    if (id) {
+      setDragComponentId(id)
+      moveComponent(id, holeId)
+    }
+    setDragComponentId(null)
+    setPreviewAnchor(null)
+  }
+
+  const holeClass = (holeId: string) => {
+    const classes = ['hole']
+    const pin = pinAt.get(holeId)
+    if (pin) classes.push('pin')
+    if (highlightedIds.includes(holeId) || (showProbe && probeTarget?.holeId === holeId)) {
+      classes.push('link')
+    }
+    if (inspectId && pin?.componentId === inspectId) classes.push('inspect')
+    if (heldId && validAnchors.has(holeId)) classes.push('target')
+    if (preview?.holes.includes(holeId)) {
+      classes.push(preview.valid ? 'footprint' : 'blocked')
+    }
+    return classes.join(' ')
   }
 
   return (
-    <div className={`board${held ? ' holding' : ''}`} style={{ width: BOARD_PX_W, height: BOARD_PX_H }}>
+    <div
+      className={`board${heldId ? ' holding' : ''}`}
+      style={{ width: BOARD_PX_W, height: BOARD_PX_H }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setPreviewAnchor(null)
+        }
+      }}
+      onPointerUp={() => {
+        // End tray pointer-hold without drop
+        if (dragComponentId && !previewAnchor) {
+          /* keep selection; clear hold after click-place path */
+        }
+      }}
+    >
       <div className="gap" />
       <div className="rail" style={{ top: holeY(10), background: '#bf3434' }} />
       <div className="rail" style={{ top: holeY(11), background: '#265ac5' }} />
@@ -88,31 +202,39 @@ export function BreadboardBoard({
         </span>
       ))}
 
-      {/* Terminal holes */}
       {VIS_ROWS.split('').map((row, ri) =>
         Array.from({ length: VIS_COLS }, (_, i) => i + 1).map((col) => {
           const id = `${row}${col}`
+          const pin = pinAt.get(id)
           return (
-            <HoleButton
+            <button
               key={id}
-              holeId={id}
-              x={holeX(col)}
-              y={holeY(ri)}
-              pin={pinAt.get(id)}
-              linked={highlightedIds.includes(id)}
-              probe={showProbe && probeTarget?.holeId === id}
-              inspect={
-                inspectId
-                  ? pinAt.get(id)?.componentId === inspectId
-                  : false
-              }
-              onClick={() => placeSelectedOrHeld(id)}
-            />
+              type="button"
+              className={holeClass(id)}
+              style={{
+                left: holeX(col),
+                top: holeY(ri),
+                ['--part' as string]: pin?.color,
+              }}
+              title={pin ? `${id} · ${pin.refDes} pin ${pin.num}` : id}
+              aria-label={id}
+              onClick={() => tryPlace(id)}
+              onPointerEnter={() => {
+                if (heldId) setPreviewAnchor(id)
+              }}
+              onDragOver={(e) => onHoleDragOver(e, id)}
+              onDrop={(e) => onHoleDrop(e, id)}
+            >
+              {pin && pin.num <= 8 && (
+                <span className={`pin-number${id.startsWith('F') ? ' lower' : ''}`}>
+                  {pin.num}
+                </span>
+              )}
+            </button>
           )
         }),
       )}
 
-      {/* Rail holes */}
       {(
         [
           ['top+', 10],
@@ -123,54 +245,61 @@ export function BreadboardBoard({
       ).map(([rail, ri]) =>
         Array.from({ length: VIS_COLS }, (_, i) => i + 1).map((col) => {
           const id = `rail-${rail}-${col}`
+          const pin = pinAt.get(id)
           return (
-            <HoleButton
+            <button
               key={id}
-              holeId={id}
-              x={holeX(col)}
-              y={holeY(ri)}
-              pin={pinAt.get(id)}
-              linked={highlightedIds.includes(id)}
-              probe={showProbe && probeTarget?.holeId === id}
-              inspect={inspectId ? pinAt.get(id)?.componentId === inspectId : false}
-              onClick={() => placeSelectedOrHeld(id)}
+              type="button"
+              className={holeClass(id)}
+              style={{
+                left: holeX(col),
+                top: holeY(ri),
+                ['--part' as string]: pin?.color,
+              }}
+              title={pin ? `${id} · ${pin.refDes}` : id}
+              aria-label={id}
+              onClick={() => tryPlace(id)}
+              onPointerEnter={() => {
+                if (heldId) setPreviewAnchor(id)
+              }}
+              onDragOver={(e) => onHoleDragOver(e, id)}
+              onDrop={(e) => onHoleDrop(e, id)}
             />
           )
         }),
       )}
 
-      {/* Wires */}
-      {project.breadboard.wires.map((w) => {
-        const a = holePixel(w.fromHoleId)
-        const b = holePixel(w.toHoleId)
-        if (!a || !b) return null
-        const dx = b.x - a.x
-        const dy = b.y - a.y
-        const len = Math.hypot(dx, dy)
-        const focused =
-          highlightedIds.includes(w.id) ||
-          highlightedIds.includes(w.fromHoleId) ||
-          highlightedIds.includes(w.toHoleId)
-        const proposed = !w.valid
-        if (proposed && !showProposed && !focused) return null
-        return (
-          <div
-            key={w.id}
-            className={`wire${proposed ? ' proposed' : ''}${focused ? ' focus-route' : ''}`}
-            style={{
-              left: a.x,
-              top: a.y - 2,
-              width: len,
-              transform: `rotate(${Math.atan2(dy, dx)}rad)`,
-              background: proposed ? undefined : w.color,
-              ['--route' as string]: w.color,
-              opacity: focused ? 1 : proposed ? 0.55 : 0.9,
-            }}
-          />
-        )
-      })}
+      {showWires &&
+        project.breadboard.wires.map((w) => {
+          const a = holePixel(w.fromHoleId)
+          const b = holePixel(w.toHoleId)
+          if (!a || !b) return null
+          const dx = b.x - a.x
+          const dy = b.y - a.y
+          const len = Math.hypot(dx, dy)
+          const focused =
+            highlightedIds.includes(w.id) ||
+            highlightedIds.includes(w.fromHoleId) ||
+            highlightedIds.includes(w.toHoleId)
+          const proposed = !w.valid
+          if (proposed && !showProposed && !focused) return null
+          return (
+            <div
+              key={w.id}
+              className={`wire${proposed ? ' proposed' : ''}${focused ? ' focus-route' : ''}`}
+              style={{
+                left: a.x,
+                top: a.y - 2,
+                width: len,
+                transform: `rotate(${Math.atan2(dy, dx)}rad)`,
+                background: proposed ? undefined : w.color,
+                ['--route' as string]: w.color,
+                opacity: focused ? 1 : proposed ? 0.55 : 0.9,
+              }}
+            />
+          )
+        })}
 
-      {/* Pieces */}
       {project.breadboard.placements.map((p) => {
         const comp = project.circuit.components.find((c) => c.id === p.componentId)
         if (!comp) return null
@@ -186,8 +315,8 @@ export function BreadboardBoard({
         const flip = comp.rotation === 180 || comp.rotation === 270
 
         if (isIc) {
-          // Align body between E/F channel like template
-          const bodyY = (holeY(terminalRowIndex('E')) + holeY(terminalRowIndex('F'))) / 2
+          const bodyY =
+            (holeY(terminalRowIndex('E')) + holeY(terminalRowIndex('F'))) / 2
           const minCol = Math.min(
             ...p.occupiedHoleIds.map((id) => Number(id.replace(/^[A-J]/, ''))),
           )
@@ -196,6 +325,7 @@ export function BreadboardBoard({
             <button
               key={p.componentId}
               type="button"
+              draggable
               className={`piece ic${flip ? ' flipped' : ''}`}
               style={{
                 left: bodyX,
@@ -207,17 +337,25 @@ export function BreadboardBoard({
               onClick={() => select([comp.id])}
               onPointerEnter={() => setInspectId(comp.id)}
               onPointerLeave={() => setInspectId(null)}
+              onDragStart={(e) => {
+                select([comp.id])
+                setDragComponentId(comp.id)
+                e.dataTransfer.setData('text/plain', comp.id)
+                e.dataTransfer.effectAllowed = 'move'
+              }}
+              onDragEnd={() => {
+                setDragComponentId(null)
+                setPreviewAnchor(null)
+              }}
               onPointerDown={() => {
                 select([comp.id])
-                setHeld(comp.id)
+                setDragComponentId(comp.id)
               }}
-              onPointerUp={() => setHeld(null)}
             >
               <span className="dip-dot" />
               {p.occupiedHoleIds.map((hid) => {
                 const px = holePixel(hid)
-                const pin = pinAt.get(hid)
-                if (!px || !pin) return null
+                if (!px) return null
                 const lower = hid.startsWith('F')
                 return (
                   <span
@@ -237,6 +375,7 @@ export function BreadboardBoard({
           <button
             key={p.componentId}
             type="button"
+            draggable
             className={`piece${isDiode ? ' diode' : ''}`}
             style={{
               left: cx,
@@ -248,11 +387,20 @@ export function BreadboardBoard({
             onClick={() => select([comp.id])}
             onPointerEnter={() => setInspectId(comp.id)}
             onPointerLeave={() => setInspectId(null)}
+            onDragStart={(e) => {
+              select([comp.id])
+              setDragComponentId(comp.id)
+              e.dataTransfer.setData('text/plain', comp.id)
+              e.dataTransfer.effectAllowed = 'move'
+            }}
+            onDragEnd={() => {
+              setDragComponentId(null)
+              setPreviewAnchor(null)
+            }}
             onPointerDown={() => {
               select([comp.id])
-              setHeld(comp.id)
+              setDragComponentId(comp.id)
             }}
-            onPointerUp={() => setHeld(null)}
           >
             {comp.refDes}
             {isDiode && <span className="cathode-mark">K</span>}
@@ -275,58 +423,5 @@ export function BreadboardBoard({
         </div>
       )}
     </div>
-  )
-}
-
-function HoleButton({
-  holeId,
-  x,
-  y,
-  pin,
-  linked,
-  probe,
-  inspect,
-  onClick,
-}: {
-  holeId: string
-  x: number
-  y: number
-  pin?: { color: string; num: number; refDes: string }
-  linked: boolean
-  probe: boolean
-  inspect: boolean
-  onClick: () => void
-}) {
-  const cls = [
-    'hole',
-    pin ? 'pin' : '',
-    linked || probe ? 'link' : '',
-    inspect ? 'inspect' : '',
-  ]
-    .filter(Boolean)
-    .join(' ')
-  return (
-    <button
-      type="button"
-      className={cls}
-      style={{
-        left: x,
-        top: y,
-        ['--part' as string]: pin?.color,
-      }}
-      title={
-        pin
-          ? `${holeId} · ${pin.refDes} pin ${pin.num}`
-          : holeId
-      }
-      aria-label={holeId}
-      onClick={onClick}
-    >
-      {pin && pin.num <= 8 && (
-        <span className={`pin-number${holeId.startsWith('F') ? ' lower' : ''}`}>
-          {pin.num}
-        </span>
-      )}
-    </button>
   )
 }

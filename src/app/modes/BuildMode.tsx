@@ -33,6 +33,8 @@ export function BuildMode() {
   const importJson = useStore((s) => s.importJson)
   const project = useStore((s) => s.project)
   const selectedIds = useStore((s) => s.selectedIds)
+  const showWires = useStore((s) => s.showWires)
+  const setShowWires = useStore((s) => s.setShowWires)
   const [source, setSource] = useState(TIMER_NETLIST)
   const [importMessage, setImportMessage] = useState(
     'Load an example, then Auto-set.',
@@ -162,6 +164,14 @@ export function BuildMode() {
             </button>
             <button type="button" aria-keyshortcuts="F" onClick={() => fitWires()}>
               Fit wires
+            </button>
+            <button
+              type="button"
+              aria-pressed={showWires}
+              title={showWires ? 'Hide jumper wires' : 'Show jumper wires'}
+              onClick={() => setShowWires(!showWires)}
+            >
+              {showWires ? 'Hide wires' : 'Show wires'}
             </button>
             <button type="button" className="primary" onClick={() => autoSet()}>
               Auto-set

@@ -69,8 +69,14 @@ interface OdysseyState {
   scopeHeight: number
   panelWidth: number
   streaming: boolean
+  /** Session-only: show jumper wires on the board */
+  showWires: boolean
+  /** Component currently dragged from tray / board (for DnD) */
+  dragComponentId: string | null
 
   setMode: (mode: AppMode) => void
+  setShowWires: (show: boolean) => void
+  setDragComponentId: (id: string | null) => void
   pushHistory: () => void
   undo: () => void
   redo: () => void
@@ -145,8 +151,12 @@ export const useStore = create<OdysseyState>((set, get) => {
     scopeHeight: 280,
     panelWidth: 340,
     streaming: false,
+    showWires: true,
+    dragComponentId: null,
 
     setMode: (mode) => set({ mode }),
+    setShowWires: (show) => set({ showWires: show }),
+    setDragComponentId: (id) => set({ dragComponentId: id }),
 
     pushHistory: () => {
       const { project, undoStack } = get()

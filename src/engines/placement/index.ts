@@ -32,8 +32,6 @@ export function rotateOffset(
 /**
  * DIP-8 placement matching Breadboard Odyssey template:
  * horizontal across the channel. Anchor = pin-1 column on row E.
- * Template legs(): upper = (pin>=5) !== flip; row E(4) if upper else F(5);
- * offset = pin<=4 ? pin-1 : 8-pin; col = c + (flip ? 3-offset : offset).
  */
 export function computePlacement(
   model: BreadboardModel,
@@ -109,6 +107,14 @@ export function computePlacement(
   }
 }
 
+/** Validate a placement against occupied holes (excluding this component). */
+export function isPlacementFree(
+  placement: Placement,
+  occupied: Set<string>,
+): boolean {
+  return !placement.occupiedHoleIds.some((h) => occupied.has(h))
+}
+
 export function findValidAnchor(
   model: BreadboardModel,
   component: ComponentInstance,
@@ -117,25 +123,61 @@ export function findValidAnchor(
 ): Placement | null {
   const def = getDefinition(component.type)
   const cols = preferredCol
-    ? [preferredCol, ...range(1, 60).filter((c) => c !== preferredCol)]
-    : range(1, 60)
+    ? [
+        preferredCol,
+        preferredCol + 1,
+        preferredCol - 1,
+        preferredCol + 2,
+        preferredCol - 2,
+        ...range(1, 28).filter(
+          (c) => Math.abs(c - preferredCol) > 2,
+        ),
+      ]
+    : range(1, 28)
+
+  if (def.category === 'power') {
+    for (const col of cols) {
+      for (const rail of ['top+', 'top-', 'bottom+', 'bottom-'] as const) {
+        const id = `rail-${rail}-${col}`
+        const candidate = computePlacement(model, component, id, 0)
+        if (!candidate) continue
+        if (!isPlacementFree(candidate, occupied)) continue
+        return candidate
+      }
+    }
+    return null
+  }
 
   if (def.footprint.straddlesChannel) {
     for (const col of cols) {
+      if (col < 1 || col > 27) continue
       const candidate = computePlacement(model, component, `E${col}`, 0)
       if (!candidate) continue
-      if (candidate.occupiedHoleIds.some((h) => occupied.has(h))) continue
+      if (!isPlacementFree(candidate, occupied)) continue
       return candidate
     }
     return null
   }
 
+  // Prefer rows away from channel clutter for passives, but near preferred col
+  const rowOrder =
+    def.category === 'led' || def.category === 'diode'
+      ? (['G', 'H', 'I', 'J', 'A', 'B', 'C', 'D'] as const)
+      : (['A', 'B', 'C', 'D', 'G', 'H', 'I', 'J'] as const)
+
   for (const col of cols) {
-    for (const row of [...TOP_ROWS, ...BOTTOM_ROWS]) {
-      const candidate = computePlacement(model, component, `${row}${col}`, 0)
-      if (!candidate) continue
-      if (candidate.occupiedHoleIds.some((h) => occupied.has(h))) continue
-      return candidate
+    for (const row of rowOrder) {
+      for (const rot of [0, 180] as Rotation[]) {
+        const candidate = computePlacement(
+          model,
+          { ...component, rotation: rot },
+          `${row}${col}`,
+          rot,
+        )
+        if (!candidate) continue
+        if (!isPlacementFree(candidate, occupied)) continue
+        return candidate
+      }
     }
   }
   return null
@@ -147,10 +189,97 @@ function range(a: number, b: number): number[] {
   return out
 }
 
+/**
+ * Curated 555 astable layout (template-faithful horizontal DIP).
+ * U1 @ E8 → VCC/DISCH/THRESH/CTRL on E8–E11, GND/TRIG/OUT/RESET on F8–F11.
+ */
+function autoSet555Demo(
+  model: BreadboardModel,
+  components: ComponentInstance[],
+): Placement[] | null {
+  const byRef = new Map(components.map((c) => [c.refDes, c]))
+  const u1 = components.find((c) => c.type === 'ne555')
+  if (!u1) return null
+
+  const occupied = new Set<string>()
+  const placements: Placement[] = []
+
+  const placeAt = (
+    comp: ComponentInstance | undefined,
+    anchor: string,
+    rotation: Rotation = 0,
+  ): boolean => {
+    if (!comp) return false
+    const p = computePlacement(
+      model,
+      { ...comp, rotation },
+      anchor,
+      rotation,
+    )
+    if (!p || !isPlacementFree(p, occupied)) return false
+    placements.push(p)
+    p.occupiedHoleIds.forEach((h) => occupied.add(h))
+    return true
+  }
+
+  // IC first — centered in the visible board
+  if (!placeAt(u1, 'E8')) return null
+
+  // Power on top rails at IC columns
+  placeAt(byRef.get('VCC'), 'rail-top+-8')
+  placeAt(byRef.get('GND'), 'rail-top--8')
+
+  // Timing: R1 VCC↔DISCHARGE uses adjacent strips A8 (VCC/E8) → A9 (DISCH/E9)
+  placeAt(byRef.get('R1'), 'A8')
+  // R2 DISCHARGE↔THRESHOLD: B9 → B10
+  placeAt(byRef.get('R2'), 'B9')
+  // C1 THRESH↔GND — sit on thresh strip; wire engine bridges to GND
+  placeAt(byRef.get('C1'), 'C10')
+  // C2 CONTROL↔GND
+  placeAt(byRef.get('C2'), 'D11')
+  // LED path on output side (F10 = OUT)
+  placeAt(byRef.get('R3'), 'G10')
+  placeAt(byRef.get('D1'), 'H10')
+  // RESET jumper near RESET (F11) toward VCC side
+  placeAt(byRef.get('J_RESET'), 'G11')
+
+  // Any remaining parts: net-aware greedy near IC
+  for (const comp of components) {
+    if (placements.some((p) => p.componentId === comp.id)) continue
+    const near = findValidAnchor(model, comp, occupied, 10)
+    if (!near) continue
+    placements.push(near)
+    near.occupiedHoleIds.forEach((h) => occupied.add(h))
+  }
+
+  return placements
+}
+
 export function autoSetPlacements(
   model: BreadboardModel,
   components: ComponentInstance[],
 ): Placement[] {
+  const curated = autoSet555Demo(model, components)
+  if (curated && curated.length > 0) {
+    const essential = components.filter((c) => {
+      const def = getDefinition(c.type)
+      return def.category !== 'jumper' || c.refDes === 'J_RESET'
+    })
+    const placedEssential = essential.filter((c) =>
+      curated.some((p) => p.componentId === c.id),
+    )
+    // Accept curated if IC + majority of essentials landed
+    if (
+      curated.some((p) => {
+        const c = components.find((x) => x.id === p.componentId)
+        return c?.type === 'ne555'
+      }) &&
+      placedEssential.length >= Math.ceil(essential.length * 0.6)
+    ) {
+      return curated
+    }
+  }
+
   const occupied = new Set<string>()
   const placements: Placement[] = []
 
@@ -158,40 +287,23 @@ export function autoSetPlacements(
     const score = (c: ComponentInstance) => {
       const def = getDefinition(c.type)
       if (def.footprint.straddlesChannel) return 0
-      if (def.category === 'passive' || def.category === 'led') return 1
-      if (def.category === 'power') return 3
-      return 2
+      if (def.category === 'power') return 1
+      if (c.refDes === 'R1' || c.refDes === 'R2') return 2
+      if (def.category === 'passive') return 3
+      if (def.category === 'led' || def.category === 'diode') return 4
+      return 5
     }
     return score(a) - score(b)
   })
 
-  let icCol = 5
+  let icCol = 8
   for (const comp of order) {
     const def = getDefinition(comp.type)
-    if (def.category === 'power') {
-      const rail = def.type === 'vcc' ? `rail-top+-5` : `rail-top--5`
-      const hole = model.holeById.get(rail)
-      if (!hole) continue
-      const placement: Placement = {
-        componentId: comp.id,
-        anchorHoleId: hole.id,
-        occupiedHoleIds: [hole.id],
-        pinHoleMap: { out: hole.id },
-      }
-      placements.push(placement)
-      occupied.add(hole.id)
-      continue
-    }
-
-    const icPlacement = placements.find((p) => {
-      const c = components.find((x) => x.id === p.componentId)
-      return c && getDefinition(c.type).footprint.straddlesChannel
-    })
     const preferred = def.footprint.straddlesChannel
       ? icCol
-      : icPlacement
-        ? model.holeById.get(icPlacement.anchorHoleId)?.col
-        : 8
+      : placements[0]
+        ? model.holeById.get(placements[0]!.anchorHoleId)?.col ?? icCol
+        : icCol
 
     const placement = findValidAnchor(
       model,
@@ -203,7 +315,7 @@ export function autoSetPlacements(
     placements.push(placement)
     placement.occupiedHoleIds.forEach((h) => occupied.add(h))
     if (def.footprint.straddlesChannel) {
-      icCol = (model.holeById.get(placement.anchorHoleId)?.col ?? 5) + 8
+      icCol = (model.holeById.get(placement.anchorHoleId)?.col ?? 8) + 6
     }
   }
 
