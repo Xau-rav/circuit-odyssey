@@ -52,7 +52,7 @@ export const COMPONENT_LIBRARY: Record<string, ComponentDefinition> = {
     ],
     footprint: { cols: 4, rows: 1 },
     defaultValue: '1k',
-    color: '#c4a574',
+    color: '#ffc174',
   },
   capacitor: {
     type: 'capacitor',
@@ -65,7 +65,7 @@ export const COMPONENT_LIBRARY: Record<string, ComponentDefinition> = {
     ],
     footprint: { cols: 2, rows: 1 },
     defaultValue: '10uF',
-    color: '#3b82f6',
+    color: '#7bd9ef',
   },
   led: {
     type: 'led',
@@ -78,7 +78,7 @@ export const COMPONENT_LIBRARY: Record<string, ComponentDefinition> = {
     ],
     footprint: { cols: 2, rows: 1 },
     defaultValue: 'RED',
-    color: '#ef4444',
+    color: '#ff929b',
   },
   diode: {
     type: 'diode',
@@ -91,9 +91,9 @@ export const COMPONENT_LIBRARY: Record<string, ComponentDefinition> = {
     ],
     footprint: { cols: 3, rows: 1 },
     defaultValue: '1N4148',
-    color: '#64748b',
+    color: '#f28ad3',
   },
-  'ne555': {
+  ne555: {
     type: 'ne555',
     label: '555 Timer',
     category: 'ic',
@@ -101,7 +101,7 @@ export const COMPONENT_LIBRARY: Record<string, ComponentDefinition> = {
     pins: NE555_DIP8_PINS,
     footprint: { cols: 2, rows: 4, straddlesChannel: true },
     defaultValue: 'NE555',
-    color: '#334155',
+    color: '#c5a7ff',
   },
   jumper: {
     type: 'jumper',
@@ -113,7 +113,7 @@ export const COMPONENT_LIBRARY: Record<string, ComponentDefinition> = {
       { id: 'b', name: 'B', number: 2, electrical: 'passive', offset: { x: 1, y: 0 } },
     ],
     footprint: { cols: 2, rows: 1 },
-    color: '#22c55e',
+    color: '#79e3c2',
   },
   vcc: {
     type: 'vcc',
@@ -125,7 +125,7 @@ export const COMPONENT_LIBRARY: Record<string, ComponentDefinition> = {
     ],
     footprint: { cols: 1, rows: 1 },
     defaultValue: '5V',
-    color: '#dc2626',
+    color: '#ff929b',
   },
   gnd: {
     type: 'gnd',
@@ -136,7 +136,7 @@ export const COMPONENT_LIBRARY: Record<string, ComponentDefinition> = {
       { id: 'out', name: 'GND', number: 1, electrical: 'ground', offset: { x: 0, y: 0 } },
     ],
     footprint: { cols: 1, rows: 1 },
-    color: '#1f2937',
+    color: '#265ac5',
   },
 }
 

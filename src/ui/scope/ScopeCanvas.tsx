@@ -60,24 +60,30 @@ export function ScopeCanvas() {
   }, [liveBuffer, transportKind])
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-lg border border-[var(--co-border)] bg-[#0b1220]">
-      <div className="absolute left-2 top-2 z-10 flex items-center gap-2">
+    <div className="relative h-full w-full overflow-hidden rounded-[12px] border border-[var(--co-border)] bg-[#0b1220]">
+      <div className="absolute left-2 top-2 z-10 flex flex-wrap items-center gap-2">
         <span
-          className={`rounded px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
-            transportKind === 'sim'
-              ? 'bg-teal-500/20 text-teal-200'
-              : 'bg-sky-500/20 text-sky-200'
-          }`}
+          className="rounded px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
+          style={{
+            background:
+              transportKind === 'sim'
+                ? 'rgba(120,239,210,0.18)'
+                : 'rgba(123,217,239,0.18)',
+            color: transportKind === 'sim' ? '#78efd2' : '#7bd9ef',
+          }}
         >
           {transportKind === 'sim' ? 'SIMULATED' : 'PHYSICAL'}
         </span>
         {streaming && (
-          <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[11px] font-medium text-emerald-200">
+          <span
+            className="rounded px-2 py-0.5 text-[11px] font-medium"
+            style={{ background: 'rgba(120,239,210,0.12)', color: '#78efd2' }}
+          >
             LIVE STREAM
           </span>
         )}
         {lastStats && (
-          <span className="font-mono text-[11px] text-slate-300">
+          <span className="font-mono text-[11px] text-[#a9b9cb]">
             mean {lastStats.mean.toFixed(2)} V · pp {lastStats.pp.toFixed(2)} V
             {lastStats.freqHz != null
               ? ` · ~${lastStats.freqHz.toFixed(2)} Hz`

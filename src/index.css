@@ -1,30 +1,42 @@
 @import 'tailwindcss';
 
 :root {
-  --co-bg: #f4f7f9;
-  --co-surface: #ffffff;
-  --co-surface-2: #eef3f6;
-  --co-border: #c9d6de;
-  --co-border-strong: #9bb0bd;
-  --co-text: #1a2b36;
-  --co-text-muted: #5a6f7c;
-  --co-teal: #0f766e;
-  --co-teal-soft: #ccfbf1;
-  --co-blue: #1d4e89;
-  --co-blue-soft: #dbeafe;
-  --co-accent: #0d9488;
-  --co-danger: #b91c1c;
-  --co-warning: #b45309;
-  --co-ok: #15803d;
-  --co-bb-body: #e8edf0;
-  --co-bb-hole: #2a3540;
-  --co-rail-red: #dc2626;
-  --co-rail-black: #1f2937;
-  --co-shadow: 0 1px 2px rgba(26, 43, 54, 0.06), 0 8px 24px rgba(26, 43, 54, 0.06);
-  --font-sans: 'IBM Plex Sans', 'Segoe UI', sans-serif;
-  --font-display: 'Outfit', 'IBM Plex Sans', sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
-  color-scheme: light;
+  /* Breadboard Odyssey template palette */
+  --co-bg: #101724;
+  --co-surface: #192333;
+  --co-surface-2: #111b2a;
+  --co-border: #344258;
+  --co-border-strong: #465874;
+  --co-text: #eef3fa;
+  --co-text-muted: #a9b9cb;
+  --co-teal: #78efd2;
+  --co-teal-ink: #102820;
+  --co-teal-soft: rgba(120, 239, 210, 0.14);
+  --co-blue: #7bd9ef;
+  --co-blue-soft: rgba(123, 217, 239, 0.12);
+  --co-accent: #78efd2;
+  --co-danger: #ffad9c;
+  --co-warning: #ffd2a6;
+  --co-ok: #78efd2;
+  --co-bb-body: #ede8dc;
+  --co-bb-inset: #c9c2b2;
+  --co-bb-hole: #d5cfc2;
+  --co-bb-hole-core: #4b5055;
+  --co-bb-text: #46505a;
+  --co-rail-red: #bf3434;
+  --co-rail-blue: #265ac5;
+  --co-shadow: none;
+  --part-r: #ffc174;
+  --part-c: #7bd9ef;
+  --part-v: #ff929b;
+  --part-x: #c5a7ff;
+  --part-d: #f28ad3;
+  --part-led: #ff929b;
+  --part-j: #79e3c2;
+  --font-sans: system-ui, 'Segoe UI', sans-serif;
+  --font-display: system-ui, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, Consolas, monospace;
+  color-scheme: dark;
 }
 
 * {
@@ -40,12 +52,9 @@ body,
 }
 
 body {
-  font-family: var(--font-sans);
+  font: 15px/1.45 var(--font-sans);
   color: var(--co-text);
-  background:
-    radial-gradient(1200px 600px at 10% -10%, #d9f3ef 0%, transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, #dce8f5 0%, transparent 50%),
-    var(--co-bg);
+  background: var(--co-bg);
   overflow: hidden;
 }
 
@@ -54,10 +63,86 @@ input,
 select,
 textarea {
   font: inherit;
+  color: inherit;
 }
 
 button {
   cursor: pointer;
+  background: var(--co-surface-2);
+  border: 1px solid var(--co-border-strong);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--co-text);
+}
+
+button:hover,
+button[aria-pressed='true'] {
+  border-color: var(--co-teal);
+  color: var(--co-teal);
+}
+
+button.primary,
+.btn-primary {
+  background: var(--co-teal);
+  color: var(--co-teal-ink);
+  border-color: var(--co-teal);
+  font-weight: 700;
+}
+
+button.primary:hover,
+.btn-primary:hover {
+  filter: brightness(1.05);
+  color: var(--co-teal-ink);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+textarea,
+input,
+select {
+  background: var(--co-surface-2);
+  border: 1px solid var(--co-border-strong);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.panel {
+  background: var(--co-surface);
+  border: 1px solid var(--co-border);
+  border-radius: 15px;
+  padding: 17px;
+}
+
+.panel h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.muted {
+  color: var(--co-text-muted);
+}
+
+.status-ok {
+  color: var(--co-teal);
+}
+
+.status-err {
+  color: var(--co-danger);
+}
+
+kbd {
+  display: inline-block;
+  background: var(--co-surface-2);
+  border: 1px solid var(--co-border-strong);
+  border-radius: 4px;
+  color: var(--co-text);
+  padding: 1px 5px;
+  margin-right: 4px;
+  font: 12px var(--font-mono);
 }
 
 ::-webkit-scrollbar {
@@ -65,9 +150,25 @@ button {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #b7c6d0;
+  background: #465874;
   border-radius: 999px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+.co-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+.co-table th,
+.co-table td {
+  padding: 6px;
+  border-bottom: 1px solid var(--co-border);
+}
+.co-table th {
+  color: var(--co-text-muted);
+  font-weight: 600;
 }

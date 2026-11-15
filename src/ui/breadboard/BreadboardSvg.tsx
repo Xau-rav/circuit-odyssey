@@ -2,11 +2,14 @@ import { useMemo, useRef, useState } from 'react'
 import {
   BOARD_HEIGHT,
   BOARD_WIDTH,
-  HOLE_R,
+  CHANNEL_GAP,
   PITCH,
+  TOP_ROWS,
 } from '../../breadboard/geometry'
 import { getDefinition } from '../../components/library/definitions'
 import { useStore } from '../../state/store'
+
+const HOLE = 8.5
 
 export function BreadboardSvg({
   interactive = true,
@@ -23,17 +26,28 @@ export function BreadboardSvg({
   const select = useStore((s) => s.select)
   const moveComponent = useStore((s) => s.moveComponent)
   const [dragId, setDragId] = useState<string | null>(null)
-  const [pan, setPan] = useState({ x: 20, y: 10 })
-  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 12, y: 8 })
+  const [zoom, setZoom] = useState(0.95)
   const svgRef = useRef<SVGSVGElement>(null)
 
-  const occupied = useMemo(() => {
-    const m = new Map<string, string>()
+  const pinOwner = useMemo(() => {
+    const m = new Map<string, { componentId: string; pinId: string; color: string; num?: number }>()
     for (const p of project.breadboard.placements) {
-      for (const h of p.occupiedHoleIds) m.set(h, p.componentId)
+      const comp = project.circuit.components.find((c) => c.id === p.componentId)
+      if (!comp) continue
+      const def = getDefinition(comp.type)
+      for (const [pinId, holeId] of Object.entries(p.pinHoleMap)) {
+        const pin = def.pins.find((x) => x.id === pinId)
+        m.set(holeId, {
+          componentId: comp.id,
+          pinId,
+          color: def.color,
+          num: pin?.number,
+        })
+      }
     }
     return m
-  }, [project.breadboard.placements])
+  }, [project])
 
   const clientToBoard = (clientX: number, clientY: number) => {
     const svg = svgRef.current
@@ -59,33 +73,27 @@ export function BreadboardSvg({
     return best
   }
 
+  const channelY =
+    PITCH * 3 + TOP_ROWS.length * PITCH + CHANNEL_GAP / 2 - PITCH / 2
+
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-lg border border-[var(--co-border)] bg-[#f0f4f6]">
+    <div className="relative h-full w-full overflow-hidden rounded-[14px] border border-[var(--co-border)] bg-[var(--co-surface-2)]">
       <div className="absolute right-2 top-2 z-10 flex gap-1">
-        <button
-          type="button"
-          className="rounded bg-white/90 px-2 py-1 text-xs shadow"
-          onClick={() => setZoom((z) => Math.min(2.2, z + 0.15))}
-        >
-          +
-        </button>
-        <button
-          type="button"
-          className="rounded bg-white/90 px-2 py-1 text-xs shadow"
-          onClick={() => setZoom((z) => Math.max(0.45, z - 0.15))}
-        >
-          −
-        </button>
-        <button
-          type="button"
-          className="rounded bg-white/90 px-2 py-1 text-xs shadow"
-          onClick={() => {
-            setZoom(1)
-            setPan({ x: 20, y: 10 })
-          }}
-        >
-          Fit
-        </button>
+        {[
+          ['+', () => setZoom((z) => Math.min(2.2, z + 0.15))],
+          ['−', () => setZoom((z) => Math.max(0.45, z - 0.15))],
+          [
+            'Fit',
+            () => {
+              setZoom(0.95)
+              setPan({ x: 12, y: 8 })
+            },
+          ],
+        ].map(([label, fn]) => (
+          <button key={String(label)} type="button" className="!px-2 !py-1 text-xs" onClick={fn as () => void}>
+            {label as string}
+          </button>
+        ))}
       </div>
       <svg
         ref={svgRef}
@@ -114,60 +122,128 @@ export function BreadboardSvg({
             y={0}
             width={BOARD_WIDTH}
             height={BOARD_HEIGHT}
-            rx={8}
-            fill="#e8edf0"
-            stroke="#9bb0bd"
+            rx={14}
+            fill="var(--co-bb-body)"
           />
-          {/* Rail color cues */}
-          <rect x={PITCH * 0.4} y={PITCH * 0.15} width={BOARD_WIDTH - PITCH} height={4} fill="#dc2626" opacity={0.7} />
-          <rect x={PITCH * 0.4} y={PITCH * 1.15} width={BOARD_WIDTH - PITCH} height={4} fill="#1f2937" opacity={0.7} />
+          <rect
+            x={0}
+            y={BOARD_HEIGHT - 8}
+            width={BOARD_WIDTH}
+            height={8}
+            rx={4}
+            fill="var(--co-bb-inset)"
+          />
+          {/* Center channel */}
+          <rect
+            x={PITCH * 1.5}
+            y={channelY - 6}
+            width={BOARD_WIDTH - PITCH * 3}
+            height={14}
+            rx={3}
+            fill="var(--co-bb-inset)"
+          />
+          {/* Rail cues */}
+          <line
+            x1={PITCH}
+            y1={PITCH * 0.5}
+            x2={BOARD_WIDTH - PITCH}
+            y2={PITCH * 0.5}
+            stroke="var(--co-rail-red)"
+            strokeWidth={2}
+            opacity={0.45}
+          />
+          <line
+            x1={PITCH}
+            y1={PITCH * 1.5}
+            x2={BOARD_WIDTH - PITCH}
+            y2={PITCH * 1.5}
+            stroke="var(--co-rail-blue)"
+            strokeWidth={2}
+            opacity={0.45}
+          />
 
-          {board.holes.map((h) => {
-            const isOcc = occupied.has(h.id)
-            const isHi = highlightedIds.includes(h.id)
-            const isProbe = showProbe && probeTarget?.holeId === h.id
-            return (
-              <circle
-                key={h.id}
-                cx={h.x}
-                cy={h.y}
-                r={HOLE_R}
-                fill={isProbe ? '#0d9488' : isHi ? '#1d4e89' : isOcc ? '#475569' : '#2a3540'}
-                opacity={isOcc ? 0.85 : 0.55}
-              >
-                <title>{h.id}</title>
-              </circle>
-            )
-          })}
-
-          {/* Column labels every 5 */}
           {Array.from({ length: 13 }, (_, i) => (i + 1) * 5).map((col) => (
             <text
               key={`col-${col}`}
               x={PITCH * col}
-              y={PITCH * 2.6}
+              y={PITCH * 2.55}
               textAnchor="middle"
-              fontSize={8}
-              fill="#5a6f7c"
+              fontSize={11}
+              fill="var(--co-bb-text)"
               fontFamily="var(--font-mono)"
             >
               {col}
             </text>
           ))}
 
+          {board.holes.map((h) => {
+            const owner = pinOwner.get(h.id)
+            const isHi = highlightedIds.includes(h.id)
+            const isProbe = showProbe && probeTarget?.holeId === h.id
+            const fill = owner
+              ? owner.color
+              : isProbe
+                ? '#78efd2'
+                : isHi
+                  ? '#afe3d0'
+                  : 'var(--co-bb-hole)'
+            return (
+              <g key={h.id} transform={`translate(${h.x},${h.y})`}>
+                <rect
+                  x={-HOLE / 2}
+                  y={-HOLE / 2}
+                  width={HOLE}
+                  height={HOLE}
+                  rx={4}
+                  fill={fill}
+                  stroke={isProbe ? '#146b54' : isHi ? '#18876e' : 'transparent'}
+                  strokeWidth={isProbe || isHi ? 2 : 0}
+                >
+                  <title>{h.id}{owner ? ` · pin ${owner.num ?? owner.pinId}` : ''}</title>
+                </rect>
+                {!owner && (
+                  <rect
+                    x={-2}
+                    y={-2}
+                    width={4}
+                    height={4}
+                    rx={1}
+                    fill="var(--co-bb-hole-core)"
+                    pointerEvents="none"
+                  />
+                )}
+                {owner?.num != null && owner.componentId && (
+                  <text
+                    y={h.row === 'F' || (TOP_ROWS as readonly string[]).includes(h.row) === false && Number(owner.num) >= 5 ? 14 : -10}
+                    textAnchor="middle"
+                    fontSize={9}
+                    fontWeight={700}
+                    fill="#202a37"
+                    fontFamily="var(--font-mono)"
+                    pointerEvents="none"
+                  >
+                    {owner.num}
+                  </text>
+                )}
+              </g>
+            )
+          })}
+
           {project.breadboard.wires.map((w) => {
             const d = w.path
               .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`)
               .join(' ')
+            const focused = highlightedIds.includes(w.id)
             return (
               <path
                 key={w.id}
                 d={d}
                 fill="none"
-                stroke={w.valid ? w.color : '#b45309'}
-                strokeWidth={w.valid ? 2.2 : 2.2}
-                strokeDasharray={w.valid ? undefined : '4 3'}
-                opacity={w.assembly === 'needs-revision' ? 0.7 : 0.95}
+                stroke={w.valid ? w.color : '#697481'}
+                strokeWidth={focused ? 5 : 4}
+                strokeLinecap="round"
+                strokeDasharray={w.valid ? undefined : '6 4'}
+                opacity={focused ? 1 : w.valid ? 0.9 : 0.55}
                 onClick={(e) => {
                   e.stopPropagation()
                   select([w.id])
@@ -186,12 +262,77 @@ export function BreadboardSvg({
             if (!holes.length) return null
             const xs = holes.map((h) => h!.x)
             const ys = holes.map((h) => h!.y)
-            const minX = Math.min(...xs) - 6
-            const maxX = Math.max(...xs) + 6
-            const minY = Math.min(...ys) - 6
-            const maxY = Math.max(...ys) + 6
+            const minX = Math.min(...xs)
+            const maxX = Math.max(...xs)
+            const minY = Math.min(...ys)
+            const maxY = Math.max(...ys)
+            const cx = (minX + maxX) / 2
+            const cy = (minY + maxY) / 2
             const selected = selectedIds.includes(comp.id)
             const highlighted = highlightedIds.includes(comp.id)
+            const isIc = def.category === 'ic'
+
+            if (isIc) {
+              const bodyW = maxX - minX + 28
+              const bodyH = 28
+              return (
+                <g
+                  key={p.componentId}
+                  style={{ cursor: interactive ? 'grab' : 'default' }}
+                  onMouseDown={(e) => {
+                    if (!interactive) return
+                    e.stopPropagation()
+                    select([comp.id])
+                    setDragId(comp.id)
+                  }}
+                >
+                  {/* DIP leads */}
+                  {holes.map((h) => (
+                    <rect
+                      key={`lead-${h!.id}`}
+                      x={h!.x - 3}
+                      y={h!.y < cy ? cy - bodyH / 2 - 10 : cy + bodyH / 2}
+                      width={6}
+                      height={10}
+                      rx={1}
+                      fill="url(#leadGrad)"
+                    />
+                  ))}
+                  <rect
+                    x={cx - bodyW / 2}
+                    y={cy - bodyH / 2}
+                    width={bodyW}
+                    height={bodyH}
+                    rx={6}
+                    fill={`color-mix(in srgb, ${def.color} 24%, #131b29)`}
+                    stroke={selected || highlighted ? '#78efd2' : def.color}
+                    strokeWidth={selected || highlighted ? 2 : 1}
+                  />
+                  {/* notch */}
+                  <path
+                    d={`M ${cx - bodyW / 2} ${cy - 7} A 7 7 0 0 1 ${cx - bodyW / 2} ${cy + 7}`}
+                    fill="var(--co-bb-inset)"
+                    stroke={def.color}
+                  />
+                  {/* pin-1 dot */}
+                  <circle cx={cx - bodyW / 2 + 12} cy={cy + 8} r={2.5} fill="#f1e7fd" />
+                  <text
+                    x={cx}
+                    y={cy + 4}
+                    textAnchor="middle"
+                    fontSize={11}
+                    fontWeight={700}
+                    fill="#fff"
+                    fontFamily="var(--font-mono)"
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    {comp.refDes}
+                  </text>
+                  <title>{comp.refDes} · NE555P · pins 1–8</title>
+                </g>
+              )
+            }
+
             return (
               <g
                 key={p.componentId}
@@ -204,30 +345,34 @@ export function BreadboardSvg({
                 }}
               >
                 <rect
-                  x={minX}
-                  y={minY}
-                  width={maxX - minX}
-                  height={maxY - minY}
-                  rx={def.category === 'ic' ? 3 : 4}
-                  fill={def.color}
-                  stroke={selected ? '#0d9488' : highlighted ? '#1d4e89' : '#0f172a'}
-                  strokeWidth={selected || highlighted ? 2.5 : 1}
-                  opacity={0.92}
+                  x={minX - 10}
+                  y={minY - 8}
+                  width={maxX - minX + 20}
+                  height={maxY - minY + 16}
+                  rx={5}
+                  fill={`color-mix(in srgb, ${def.color} 24%, #131b29)`}
+                  stroke={selected || highlighted ? '#78efd2' : def.color}
+                  strokeWidth={selected || highlighted ? 2 : 1}
                 />
-                {def.category === 'ic' && (
-                  <path
-                    d={`M ${minX + 4} ${minY} A 4 4 0 0 0 ${minX + 4} ${minY + 8}`}
-                    fill="none"
-                    stroke="#e2e8f0"
-                    strokeWidth={1.5}
-                  />
-                )}
+                {def.category === 'diode' || def.category === 'led' ? (
+                  <text
+                    x={maxX + 2}
+                    y={cy + 3}
+                    fontSize={10}
+                    fill="#f8b5e6"
+                    fontFamily="var(--font-mono)"
+                    pointerEvents="none"
+                  >
+                    K
+                  </text>
+                ) : null}
                 <text
-                  x={(minX + maxX) / 2}
-                  y={(minY + maxY) / 2 + 3}
+                  x={cx}
+                  y={cy + 3}
                   textAnchor="middle"
-                  fontSize={9}
-                  fill="#f8fafc"
+                  fontSize={11}
+                  fontWeight={700}
+                  fill="#fff"
                   fontFamily="var(--font-mono)"
                   style={{ pointerEvents: 'none' }}
                 >
@@ -235,9 +380,6 @@ export function BreadboardSvg({
                 </text>
                 <title>
                   {comp.refDes} {def.label} {comp.value ?? ''}
-                  {def.type === 'ne555'
-                    ? '\nPins: 1 GND … 4 RESET … 8 VCC'
-                    : ''}
                 </title>
               </g>
             )
@@ -252,16 +394,17 @@ export function BreadboardSvg({
                     <circle
                       cx={h.x}
                       cy={h.y}
-                      r={8}
+                      r={11}
                       fill="none"
-                      stroke="#0d9488"
+                      stroke="#78efd2"
                       strokeWidth={2}
                     />
                     <text
-                      x={h.x + 10}
-                      y={h.y - 8}
-                      fontSize={10}
-                      fill="#0f766e"
+                      x={h.x + 12}
+                      y={h.y - 10}
+                      fontSize={11}
+                      fontWeight={700}
+                      fill="#78efd2"
                       fontFamily="var(--font-display)"
                     >
                       PROBE
@@ -271,6 +414,14 @@ export function BreadboardSvg({
               })()}
             </g>
           )}
+
+          <defs>
+            <linearGradient id="leadGrad" x1="0" x2="1">
+              <stop offset="0%" stopColor="#929baa" />
+              <stop offset="50%" stopColor="#ecedf4" />
+              <stop offset="100%" stopColor="#929baa" />
+            </linearGradient>
+          </defs>
         </g>
       </svg>
     </div>

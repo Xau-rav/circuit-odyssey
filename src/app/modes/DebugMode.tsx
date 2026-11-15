@@ -13,17 +13,25 @@ export function DebugMode() {
   const drag = useRef<'v' | 'h' | null>(null)
 
   return (
-    <div className="flex h-full min-h-0">
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div style={{ height: scopeHeight }} className="shrink-0 p-2 pb-0">
-          <ScopeCanvas />
-        </div>
+    <div className="flex h-[calc(100vh-120px)] min-h-[640px] gap-0">
+      <div className="flex min-w-0 flex-1 flex-col gap-0">
+        <section className="panel !mb-0 !rounded-b-none" style={{ height: scopeHeight }}>
+          <div className="toolbar mb-2 flex items-center gap-2">
+            <h2 className="mb-0 mr-auto">Oscilloscope</h2>
+            <span className="text-xs text-[var(--co-text-muted)]">
+              Resizable · sim vs physical always labeled
+            </span>
+          </div>
+          <div className="h-[calc(100%-36px)]">
+            <ScopeCanvas />
+          </div>
+        </section>
         <div
           className="h-1.5 shrink-0 cursor-row-resize bg-[var(--co-border)] hover:bg-[var(--co-teal)]"
           onMouseDown={() => {
             drag.current = 'h'
             const onMove = (e: MouseEvent) => {
-              if (drag.current === 'h') setScopeHeight(e.clientY - 56)
+              if (drag.current === 'h') setScopeHeight(e.clientY - 110)
             }
             const onUp = () => {
               drag.current = null
@@ -35,15 +43,16 @@ export function DebugMode() {
           }}
         />
         <div className="flex min-h-0 flex-1">
-          <div className="min-w-0 flex-1 p-2">
-            <BreadboardSvg showProbe />
-          </div>
-          <div className="w-72 shrink-0 overflow-auto border-l border-[var(--co-border)] bg-[var(--co-surface)]">
-            <div className="border-b border-[var(--co-border)] px-3 py-2 text-sm font-semibold">
-              Capture
+          <section className="panel min-w-0 flex-1 !rounded-t-none !rounded-r-none">
+            <h2>Probe breadboard</h2>
+            <div className="h-[calc(100%-40px)] min-h-[220px]">
+              <BreadboardSvg showProbe />
             </div>
+          </section>
+          <section className="panel w-72 shrink-0 !rounded-none overflow-auto border-l-0">
+            <h2>Capture</h2>
             <MeasurementPanel />
-          </div>
+          </section>
         </div>
       </div>
 
@@ -53,7 +62,7 @@ export function DebugMode() {
           drag.current = 'v'
           const onMove = (e: MouseEvent) => {
             if (drag.current === 'v') {
-              setPanelWidth(window.innerWidth - e.clientX)
+              setPanelWidth(window.innerWidth - e.clientX - 24)
             }
           }
           const onUp = () => {
@@ -66,11 +75,10 @@ export function DebugMode() {
         }}
       />
 
-      <aside
-        style={{ width: panelWidth }}
-        className="shrink-0 border-l border-[var(--co-border)]"
-      >
-        <AssistantPanel />
+      <aside style={{ width: panelWidth }} className="shrink-0">
+        <section className="panel h-full !p-0 overflow-hidden">
+          <AssistantPanel />
+        </section>
       </aside>
     </div>
   )

@@ -17,16 +17,14 @@ export function AssistantPanel() {
   )
 
   return (
-    <div className="flex h-full flex-col bg-[var(--co-surface)]">
-      <div className="border-b border-[var(--co-border)] px-3 py-2">
-        <h2 className="font-[family-name:var(--font-display)] text-sm font-semibold">
-          Diagnostic Assistant
-        </h2>
-        <p className="text-xs text-[var(--co-text-muted)]">
+    <div className="flex h-full flex-col">
+      <div className="border-b border-[var(--co-border)] px-4 py-3">
+        <h2 className="m-0 text-base">Diagnostic Assistant</h2>
+        <p className="muted m-0 mt-1 text-xs">
           Gemini tools against circuit model · key via{' '}
           <code className="font-mono text-[10px]">.env</code>
           {aiMode && (
-            <span className="ml-2 rounded bg-[var(--co-blue-soft)] px-1.5 py-0.5 text-[10px] text-[var(--co-blue)]">
+            <span className="ml-2 rounded border border-[var(--co-border)] px-1.5 py-0.5 text-[10px] text-[var(--co-teal)]">
               {aiMode}
             </span>
           )}
@@ -47,16 +45,16 @@ export function AssistantPanel() {
           Demo fault: missing RESET (pin 4)
         </label>
         {probeTarget && (
-          <div className="rounded border border-[var(--co-border)] bg-[var(--co-surface-2)] p-2 text-xs">
+          <div className="rounded-lg border border-[var(--co-border)] bg-[var(--co-surface-2)] p-2 text-xs">
             <div className="font-semibold">Probe request</div>
-            <div className="text-[var(--co-text-muted)]">
+            <div className="muted">
               net={probeTarget.netId ?? '—'} hole={probeTarget.holeId ?? '—'}
             </div>
             <button
               type="button"
+              className="primary mt-2"
               disabled={probeConfirmed}
               onClick={() => confirmProbe()}
-              className="mt-2 rounded bg-[var(--co-teal)] px-2 py-1 text-white disabled:opacity-50"
             >
               {probeConfirmed ? 'Probe confirmed' : 'Confirm Probe'}
             </button>
@@ -66,7 +64,7 @@ export function AssistantPanel() {
 
       <div className="flex-1 space-y-2 overflow-auto p-3">
         {chat.length === 0 && (
-          <p className="text-xs text-[var(--co-text-muted)]">
+          <p className="muted text-xs">
             Ask for a diagnosis. Without <code>GEMINI_API_KEY</code>, the offline
             fixture path still walks the missing-RESET demo.
           </p>
@@ -74,20 +72,22 @@ export function AssistantPanel() {
         {chat.map((m) => (
           <div
             key={m.id}
-            className={`rounded-md px-2 py-1.5 text-xs whitespace-pre-wrap ${
+            className={`rounded-lg px-2 py-1.5 text-xs whitespace-pre-wrap ${
               m.role === 'user'
-                ? 'bg-[var(--co-blue-soft)] text-[var(--co-blue)]'
-                : 'bg-[var(--co-surface-2)] text-[var(--co-text)]'
+                ? 'border border-[var(--co-border)] bg-[var(--co-blue-soft)]'
+                : 'bg-[var(--co-surface-2)]'
             }`}
           >
-            <div className="mb-0.5 text-[10px] uppercase opacity-60">{m.role}</div>
+            <div className="mb-0.5 text-[10px] uppercase text-[var(--co-text-muted)]">
+              {m.role}
+            </div>
             {m.content}
           </div>
         ))}
       </div>
 
       <form
-        className="border-t border-[var(--co-border)] p-2"
+        className="border-t border-[var(--co-border)] p-3"
         onSubmit={(e) => {
           e.preventDefault()
           void diagnose(text)
@@ -97,13 +97,9 @@ export function AssistantPanel() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={3}
-          className="w-full resize-none rounded border border-[var(--co-border)] bg-white p-2 text-xs"
+          className="w-full resize-vertical font-mono text-[13px] leading-relaxed"
         />
-        <button
-          type="submit"
-          disabled={aiBusy}
-          className="mt-2 w-full rounded bg-[var(--co-blue)] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-        >
+        <button type="submit" className="primary mt-2 w-full" disabled={aiBusy}>
           {aiBusy ? 'Diagnosing…' : 'Diagnose'}
         </button>
       </form>

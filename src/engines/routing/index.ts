@@ -4,10 +4,10 @@ import { createId } from '../../core/ids'
 import type { CircuitModel, Net, Placement, Point, Wire } from '../../core/types'
 
 const NET_COLORS: Record<string, string> = {
-  vcc: '#dc2626',
-  gnd: '#1f2937',
-  signal: '#0d9488',
-  unknown: '#2563eb',
+  vcc: '#bf3434',
+  gnd: '#265ac5',
+  signal: '#0c795c',
+  unknown: '#653cc5',
 }
 
 export function wireColorForNet(net: Net): string {
