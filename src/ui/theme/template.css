@@ -1,0 +1,490 @@
+/* Ported from breadboard-odyssey-template-v3.html — visual source of truth */
+
+.co-app {
+  color: #eef3fa;
+  font: 15px system-ui, sans-serif;
+  background: #101724;
+}
+
+.co-shell {
+  max-width: 1250px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.co-header {
+  max-width: 1250px;
+  margin: 0 auto;
+  padding: 24px;
+  border-bottom: 1px solid #334054;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.co-header i {
+  background: #78efd2;
+  color: #102820;
+  border-radius: 12px;
+  padding: 12px;
+  font-style: normal;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.co-header h1 {
+  margin: 0;
+  font-size: 25px;
+  font-weight: 650;
+}
+
+.co-header p,
+.co-app small,
+.co-app .muted {
+  color: #a9b9cb;
+  margin: 0;
+}
+
+.co-main {
+  display: grid;
+  grid-template-columns: 290px minmax(0, 1fr);
+  gap: 18px;
+}
+
+.co-app section.panel,
+.co-app .panel {
+  background: #192333;
+  border: 1px solid #344258;
+  border-radius: 15px;
+  padding: 17px;
+  margin-bottom: 14px;
+}
+
+.co-app h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.co-app button,
+.co-app select,
+.co-app textarea {
+  font: inherit;
+  color: inherit;
+  background: #111b2a;
+  border: 1px solid #465874;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.co-app button,
+.co-app select {
+  cursor: pointer;
+}
+
+.co-app button:hover,
+.co-app button[aria-pressed='true'] {
+  border-color: #78efd2;
+  color: #78efd2;
+}
+
+.co-app button.primary {
+  background: #78efd2;
+  color: #102820;
+  font-weight: 700;
+  border-color: #78efd2;
+}
+
+.co-app button.primary:hover {
+  color: #102820;
+  filter: brightness(1.04);
+}
+
+.co-app button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.co-app textarea {
+  width: 100%;
+  font: 13px monospace;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.co-app nav,
+.co-app .toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.co-app .toolbar h2 {
+  margin: 0 auto 0 0;
+}
+
+.co-app .tray {
+  display: grid;
+  gap: 7px;
+}
+
+.co-app .tray button {
+  text-align: left;
+}
+
+.co-app .scroll {
+  overflow: auto;
+  padding: 8px 0;
+}
+
+.co-app .board {
+  position: relative;
+  /* width/height also set inline from templateGeometry */
+  width: 1196px;
+  height: 468px;
+  background: #ede8dc;
+  border-radius: 14px;
+  box-shadow: inset 0 -5px #c9c2b2;
+  color: #46505a;
+  flex-shrink: 0;
+}
+
+.co-app .hole {
+  position: absolute;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: #d5cfc2;
+  display: grid;
+  place-items: center;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+
+.co-app .hole::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: #4b5055;
+}
+
+.co-app .hole:hover,
+.co-app .hole:focus-visible {
+  outline: 3px solid #139f80;
+}
+
+.co-app .hole.pin {
+  background: var(--part, #79e3c2);
+}
+
+.co-app .hole.pin::after {
+  display: none;
+}
+
+.co-app .hole.link {
+  background: var(--part, #79e3c2);
+  outline: 2px solid #18876e;
+}
+
+.co-app .hole.target {
+  outline: 2px dashed #146b54;
+  outline-offset: 1px;
+  background: #afe3d0;
+}
+
+.co-app .hole.footprint {
+  outline: 3px solid #066a69;
+  outline-offset: 2px;
+  background: #54e0d5;
+  z-index: 2;
+}
+
+.co-app .hole.blocked {
+  outline: 3px solid #b63f32;
+  outline-offset: 2px;
+}
+
+.co-app .hole.inspect {
+  outline: 2px solid color-mix(in srgb, var(--part) 75%, #182333);
+  outline-offset: 3px;
+}
+
+.co-app .board.holding .hole {
+  cursor: grabbing;
+}
+
+.co-app .label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font: 11px monospace;
+  pointer-events: none;
+}
+
+.co-app .gap {
+  position: absolute;
+  left: 28px;
+  right: 28px;
+  top: 229px;
+  height: 24px;
+  background: #c9c2b2;
+  border-radius: 3px;
+}
+
+.co-app .rail {
+  position: absolute;
+  left: 34px;
+  right: 24px;
+  height: 2px;
+  opacity: 0.45;
+}
+
+.co-app .piece {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background: color-mix(in srgb, var(--part) 24%, #131b29);
+  border: 1px solid var(--part, #78efd2);
+  border-radius: 5px;
+  color: white;
+  padding: 2px 5px;
+  font: bold 11px monospace;
+  cursor: grab;
+  touch-action: none;
+  z-index: 3;
+}
+
+.co-app .piece:hover {
+  box-shadow: 0 0 0 2px var(--part);
+}
+
+.co-app .piece:active {
+  cursor: grabbing;
+  filter: brightness(1.28);
+}
+
+.co-app .piece.ic {
+  width: 142px;
+  height: 38px;
+  border-radius: 6px;
+  overflow: visible;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+}
+
+.co-app .piece.ic::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: -1px;
+  width: 8px;
+  height: 14px;
+  transform: translateY(-50%);
+  background: #c9c2b2;
+  border: 1px solid var(--part);
+  border-left: 0;
+  border-radius: 0 12px 12px 0;
+  pointer-events: none;
+}
+
+.co-app .piece.ic.flipped::before {
+  left: auto;
+  right: -1px;
+  transform: translateY(-50%) scaleX(-1);
+}
+
+.co-app .dip-dot {
+  position: absolute;
+  bottom: 5px;
+  left: 10px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #f1e7fd;
+  pointer-events: none;
+}
+
+.co-app .flipped .dip-dot {
+  bottom: auto;
+  top: 5px;
+  left: auto;
+  right: 10px;
+}
+
+.co-app .dip-lead {
+  position: absolute;
+  width: 8px;
+  height: 16px;
+  background: linear-gradient(90deg, #929baa, #ecedf4, #929baa);
+  border-radius: 2px;
+  pointer-events: none;
+  transform: translateX(-50%);
+  top: -16px;
+}
+
+.co-app .dip-lead.lower {
+  top: auto;
+  bottom: -16px;
+}
+
+.co-app .pin-number {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  background: #202a37;
+  color: white;
+  padding: 1px 3px;
+  border-radius: 4px;
+  font: bold 10px monospace;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.co-app .pin-number.lower {
+  bottom: auto;
+  top: calc(100% + 2px);
+}
+
+.co-app .piece.diode {
+  padding-inline: 16px;
+}
+
+.co-app .cathode-mark {
+  position: absolute;
+  right: 3px;
+  color: #f8b5e6;
+}
+
+.co-app .cathode-left .cathode-mark {
+  right: auto;
+  left: 3px;
+}
+
+.co-app .wire {
+  position: absolute;
+  height: 4px;
+  border-radius: 3px;
+  transform-origin: left center;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.co-app .wire.proposed {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--route) 0 3px,
+    transparent 3px 7px
+  ) !important;
+  opacity: 0.55;
+}
+
+.co-app .wire.focus-route {
+  height: 6px;
+  z-index: 2;
+  opacity: 1;
+}
+
+.co-app .status {
+  margin-top: 8px;
+  color: #78efd2;
+  min-height: 24px;
+}
+
+.co-app .error {
+  color: #ffad9c;
+}
+
+.co-app .reports {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.co-app table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+
+.co-app td,
+.co-app th {
+  padding: 6px;
+  border-bottom: 1px solid #344258;
+}
+
+.co-app th {
+  color: #a9b9cb;
+}
+
+.co-app .shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 10px;
+  color: #a9b9cb;
+  font-size: 12px;
+}
+
+.co-app .shortcuts kbd {
+  display: inline-block;
+  background: #111b2a;
+  border: 1px solid #465874;
+  border-radius: 4px;
+  color: #eef3fa;
+  padding: 1px 5px;
+  margin-right: 4px;
+  font: 12px monospace;
+}
+
+.co-app .tasks {
+  display: grid;
+  gap: 6px;
+}
+
+.co-app .task {
+  text-align: left;
+}
+
+.co-app .task.attention {
+  border-color: #a16a46;
+  color: #ffd2a6;
+}
+
+.co-app .tray button,
+.co-app .piece {
+  --part: #eef3fa;
+  border-color: var(--part);
+}
+
+.co-app .tray button {
+  border-left: 4px solid var(--part);
+}
+
+.co-app .tray button:hover {
+  box-shadow: 0 0 0 2px var(--part);
+  color: white;
+}
+
+.co-app .mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-left: 8px;
+}
+
+@media (max-width: 760px) {
+  .co-main,
+  .co-app .reports {
+    grid-template-columns: 1fr;
+  }
+  .co-header,
+  .co-shell {
+    padding: 12px;
+  }
+}

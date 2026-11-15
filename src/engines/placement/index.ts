@@ -30,8 +30,10 @@ export function rotateOffset(
 }
 
 /**
- * Compute occupied holes and pin→hole map for a DIP or axial part.
- * DIP-8 straddling the channel: anchor is pin-1 hole on the top strip (row E preferred).
+ * DIP-8 placement matching Breadboard Odyssey template:
+ * horizontal across the channel. Anchor = pin-1 column on row E.
+ * Template legs(): upper = (pin>=5) !== flip; row E(4) if upper else F(5);
+ * offset = pin<=4 ? pin-1 : 8-pin; col = c + (flip ? 3-offset : offset).
  */
 export function computePlacement(
   model: BreadboardModel,
@@ -41,47 +43,62 @@ export function computePlacement(
 ): Placement | null {
   const def = getDefinition(component.type)
   const anchor = model.holeById.get(anchorHoleId)
-  if (!anchor || anchor.region !== 'terminal') return null
+  if (!anchor) return null
 
   const occupied: string[] = []
   const pinHoleMap: Record<string, string> = {}
 
   if (def.footprint.straddlesChannel) {
-    // Rotation 0 only: pin 1 must be on row E (channel edge).
-    // Top: E,D,C,B…  Bottom across channel: F,G,H,I…
-    if (rotation !== 0) return null
-    if (anchor.row !== 'E') return null
+    if (anchor.region !== 'terminal' || anchor.row !== 'E') return null
+    const flip = rotation === 180 || rotation === 270
     const half = def.pins.length / 2
-    if (half > TOP_ROWS.length || half > BOTTOM_ROWS.length) return null
+    if (anchor.col + half - 1 > 63 || anchor.col < 1) return null
 
-    for (let i = 0; i < half; i++) {
-      const topRow = TOP_ROWS[TOP_ROWS.length - 1 - i]! // E,D,C,B…
-      const bottomRow = BOTTOM_ROWS[i]! // F,G,H,I…
-      const leftPin = def.pins.find((p) => p.number === i + 1)!
-      const rightPin = def.pins.find((p) => p.number === def.pins.length - i)!
-      const leftId = `${topRow}${anchor.col}`
-      const rightId = `${bottomRow}${anchor.col}`
-      if (!model.holeById.has(leftId) || !model.holeById.has(rightId)) return null
-      occupied.push(leftId, rightId)
-      pinHoleMap[leftPin.id] = leftId
-      pinHoleMap[rightPin.id] = rightId
-    }
-  } else {
     for (const pin of def.pins) {
-      const off = rotateOffset(pin.offset.x, pin.offset.y, rotation)
-      const col = anchor.col + off.x
-      const rowIdx =
-        (isTopRow(anchor.row) ? TOP_ROWS : BOTTOM_ROWS).indexOf(
-          anchor.row as never,
-        ) + off.y
-      const rows = isTopRow(anchor.row) ? TOP_ROWS : BOTTOM_ROWS
-      if (rowIdx < 0 || rowIdx >= rows.length) return null
-      const row = rows[rowIdx]!
-      const holeId = `${row}${col}`
-      if (!model.holeById.has(holeId)) return null
-      occupied.push(holeId)
-      pinHoleMap[pin.id] = holeId
+      const upper = pin.number >= 5 !== flip
+      const offset = pin.number <= 4 ? pin.number - 1 : 8 - pin.number
+      const col = anchor.col + (flip ? half - 1 - offset : offset)
+      const row = upper ? 'E' : 'F'
+      const id = `${row}${col}`
+      if (!model.holeById.has(id)) return null
+      occupied.push(id)
+      pinHoleMap[pin.id] = id
     }
+
+    return {
+      componentId: component.id,
+      anchorHoleId,
+      occupiedHoleIds: [...new Set(occupied)],
+      pinHoleMap,
+    }
+  }
+
+  if (def.category === 'power') {
+    if (anchor.region !== 'rail') return null
+    return {
+      componentId: component.id,
+      anchorHoleId,
+      occupiedHoleIds: [anchorHoleId],
+      pinHoleMap: { out: anchorHoleId },
+    }
+  }
+
+  if (anchor.region !== 'terminal') return null
+
+  for (const pin of def.pins) {
+    const off = rotateOffset(pin.offset.x, pin.offset.y, rotation)
+    const col = anchor.col + off.x
+    const rowIdx =
+      (isTopRow(anchor.row) ? TOP_ROWS : BOTTOM_ROWS).indexOf(
+        anchor.row as never,
+      ) + off.y
+    const rows = isTopRow(anchor.row) ? TOP_ROWS : BOTTOM_ROWS
+    if (rowIdx < 0 || rowIdx >= rows.length) return null
+    const row = rows[rowIdx]!
+    const holeId = `${row}${col}`
+    if (!model.holeById.has(holeId)) return null
+    occupied.push(holeId)
+    pinHoleMap[pin.id] = holeId
   }
 
   return {
@@ -100,8 +117,8 @@ export function findValidAnchor(
 ): Placement | null {
   const def = getDefinition(component.type)
   const cols = preferredCol
-    ? [preferredCol, ...range(1, 63).filter((c) => c !== preferredCol)]
-    : range(1, 63)
+    ? [preferredCol, ...range(1, 60).filter((c) => c !== preferredCol)]
+    : range(1, 60)
 
   if (def.footprint.straddlesChannel) {
     for (const col of cols) {
@@ -130,7 +147,6 @@ function range(a: number, b: number): number[] {
   return out
 }
 
-/** Greedy Auto-Set: place IC first, then passives near related nets, power last as rail ties. */
 export function autoSetPlacements(
   model: BreadboardModel,
   components: ComponentInstance[],
@@ -149,13 +165,11 @@ export function autoSetPlacements(
     return score(a) - score(b)
   })
 
-  let icCol = 30
+  let icCol = 5
   for (const comp of order) {
     const def = getDefinition(comp.type)
     if (def.category === 'power') {
-      // Place VCC/GND as markers on rails near center
-      const rail =
-        def.type === 'vcc' ? `rail-top+-30` : `rail-top--30`
+      const rail = def.type === 'vcc' ? `rail-top+-5` : `rail-top--5`
       const hole = model.holeById.get(rail)
       if (!hole) continue
       const placement: Placement = {
@@ -169,17 +183,28 @@ export function autoSetPlacements(
       continue
     }
 
-    const preferred =
-      def.footprint.straddlesChannel
-        ? icCol
-        : placements[0]
-          ? model.holeById.get(placements[0].anchorHoleId)?.col
-          : 28
-    const placement = findValidAnchor(model, { ...comp, rotation: 0 }, occupied, preferred)
+    const icPlacement = placements.find((p) => {
+      const c = components.find((x) => x.id === p.componentId)
+      return c && getDefinition(c.type).footprint.straddlesChannel
+    })
+    const preferred = def.footprint.straddlesChannel
+      ? icCol
+      : icPlacement
+        ? model.holeById.get(icPlacement.anchorHoleId)?.col
+        : 8
+
+    const placement = findValidAnchor(
+      model,
+      { ...comp, rotation: 0 },
+      occupied,
+      preferred,
+    )
     if (!placement) continue
     placements.push(placement)
     placement.occupiedHoleIds.forEach((h) => occupied.add(h))
-    if (def.footprint.straddlesChannel) icCol = (model.holeById.get(placement.anchorHoleId)?.col ?? 30) + 6
+    if (def.footprint.straddlesChannel) {
+      icCol = (model.holeById.get(placement.anchorHoleId)?.col ?? 5) + 8
+    }
   }
 
   return placements
@@ -198,6 +223,9 @@ export function placementCenter(
   return { x, y }
 }
 
-export function manhattan(a: { x: number; y: number }, b: { x: number; y: number }): number {
+export function manhattan(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): number {
   return Math.abs(a.x - b.x) / PITCH + Math.abs(a.y - b.y) / PITCH
 }

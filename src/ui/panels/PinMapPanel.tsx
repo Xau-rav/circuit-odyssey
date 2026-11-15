@@ -11,7 +11,7 @@ export function PinMapPanel() {
     : null
 
   if (!selected) {
-    return <p className="muted m-0 text-sm">Choose a part to inspect its pin map.</p>
+    return <p className="muted">Choose a part to inspect its pin map.</p>
   }
 
   const def = getDefinition(selected.type)
@@ -24,20 +24,25 @@ export function PinMapPanel() {
     <div>
       {selected.type === 'ne555' ? (
         <>
-          <select aria-label="Physical IC package" className="mb-2 w-full" disabled>
+          <select
+            id="profile"
+            aria-label="Physical IC package"
+            disabled
+            style={{ marginBottom: 10, width: '100%' }}
+          >
             <option>NE555P · PDIP-8</option>
           </select>
-          <p className="muted mb-3 text-xs">
-            Terminal → net → NE555P pin → breadboard hole. Notch / pin-1 end faces
-            the channel-side GND row when Auto-Set places the DIP.
+          <p className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
+            SPICE argument position → .SUBCKT terminal → NE555P pin → breadboard
+            hole. The notch and white dot mark the pin-1 end.
           </p>
         </>
       ) : (
-        <p className="muted mb-3 text-sm">
+        <p className="muted" style={{ marginBottom: 12 }}>
           {selected.refDes} · {selected.value ?? def.label}
         </p>
       )}
-      <table className="co-table">
+      <table>
         <thead>
           <tr>
             <th>Terminal</th>
@@ -52,9 +57,7 @@ export function PinMapPanel() {
               <td>{pin.name}</td>
               <td>{netName(selected.pins[pin.id]?.netId ?? null)}</td>
               <td>{pin.number}</td>
-              <td className="font-mono">
-                {placement?.pinHoleMap[pin.id] ?? '—'}
-              </td>
+              <td>{placement?.pinHoleMap[pin.id] ?? '—'}</td>
             </tr>
           ))}
         </tbody>

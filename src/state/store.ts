@@ -82,6 +82,7 @@ interface OdysseyState {
   highlight: (ids: string[]) => void
   moveComponent: (componentId: string, anchorHoleId: string) => void
   rotateSelected: () => void
+  removeSelected: () => void
   setAssemblyStatus: (stepId: string, status: AssemblyStatus) => void
   setTransport: (kind: TransportKind) => Promise<void>
   connectTransport: () => Promise<void>
@@ -295,9 +296,17 @@ export const useStore = create<OdysseyState>((set, get) => {
       const id = selectedIds[0]
       if (!id) return
       const comp = project.circuit.components.find((c) => c.id === id)
-      if (!comp || comp.type === 'ne555') return // DIP rotation deferred
+      if (!comp) return
+      if (comp.type === 'vcc' || comp.type === 'gnd') return
       get().pushHistory()
-      const nextRot = ((comp.rotation + 90) % 360) as Rotation
+      // DIP: template Rotate 180°; passives: 90° steps
+      const nextRot = (
+        comp.type === 'ne555'
+          ? comp.rotation === 0
+            ? 180
+            : 0
+          : (comp.rotation + 90) % 360
+      ) as Rotation
       const existing = project.breadboard.placements.find((p) => p.componentId === id)
       let placements = project.breadboard.placements
       let wires: Wire[] = project.breadboard.wires
@@ -329,6 +338,38 @@ export const useStore = create<OdysseyState>((set, get) => {
           },
           breadboard: { ...project.breadboard, placements, wires },
           assembly: reviseAffectedSteps(project.assembly, [id]),
+        },
+      })
+    },
+
+    removeSelected: () => {
+      const { selectedIds, project } = get()
+      const id = selectedIds[0]
+      if (!id) return
+      const existing = project.breadboard.placements.find((p) => p.componentId === id)
+      if (!existing) return
+      get().pushHistory()
+      const wires = markAffectedWires(
+        project.breadboard.wires,
+        existing.occupiedHoleIds,
+      )
+      set({
+        project: {
+          ...project,
+          breadboard: {
+            ...project.breadboard,
+            placements: project.breadboard.placements.filter(
+              (p) => p.componentId !== id,
+            ),
+            wires,
+          },
+          assembly: reviseAffectedSteps(project.assembly, [id]),
+          circuit: {
+            ...project.circuit,
+            components: project.circuit.components.map((c) =>
+              c.id === id ? { ...c, placement: undefined } : c,
+            ),
+          },
         },
       })
     },

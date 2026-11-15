@@ -9,29 +9,24 @@ export function JumpersPanel() {
 
   return (
     <div>
-      <p className="muted mb-3 text-xs">
-        Select a route to highlight endpoints. Fit wires applies the current plan.
-        Red = VCC, blue-ish dark = GND. Dotted = needs revision.
-      </p>
-      <div className="mb-3">
+      <div style={{ marginBottom: 10 }}>
         <button type="button" className="primary" onClick={() => fitWires()}>
           Fit wires
         </button>
       </div>
-      <div className="grid gap-2">
+      <div style={{ display: 'grid', gap: 8 }}>
         {wires.length === 0 && (
-          <p className="muted m-0 text-sm">Place parts to see jumper suggestions.</p>
+          <p className="muted">Place parts to see jumper suggestions.</p>
         )}
         {wires.map((w) => {
           const net = nets.get(w.netId)
           const label = `${net?.name ?? w.netId} · ${w.fromHoleId} ↔ ${w.toHoleId}`
           return (
-            <div key={w.id} className="flex flex-wrap gap-2">
+            <div key={w.id} className="toolbar" style={{ marginBottom: 0 }}>
               <button
                 type="button"
                 onClick={() => highlight([w.id, w.fromHoleId, w.toHoleId])}
-                className="flex-1 text-left"
-                style={{ borderColor: w.valid ? w.color : '#a16a46' }}
+                style={{ flex: 1, textAlign: 'left' }}
               >
                 {label}
                 {!w.valid ? ' (revise)' : ''}

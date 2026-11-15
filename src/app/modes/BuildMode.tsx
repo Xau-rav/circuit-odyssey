@@ -1,109 +1,178 @@
-import { BreadboardSvg } from '../../ui/breadboard/BreadboardSvg'
+import { useMemo, useState } from 'react'
+import { BreadboardBoard } from '../../ui/breadboard/BreadboardBoard'
 import { AssemblyPanel } from '../../ui/panels/AssemblyPanel'
 import { PartsTray } from '../../ui/panels/PartsTray'
 import { PinMapPanel } from '../../ui/panels/PinMapPanel'
 import { JumpersPanel } from '../../ui/panels/JumpersPanel'
 import { useStore } from '../../state/store'
 
+const TIMER_NETLIST = `* 555 LED blinker
+V1 VCC 0 DC 5
+R1 VCC DISCHARGE 10k
+R2 DISCHARGE TIMING 100k
+C1 TIMING 0 10u
+C2 CTRL 0 10n
+RLED OUT LED_A 330
+DLED LED_A 0 RED_LED
+.model RED_LED D(IS=1e-20 N=2)
+XU1 VCC 0 TIMING TIMING DISCHARGE CTRL OUT VCC TIMER_DEMO
+* Interface declaration only
+.SUBCKT TIMER_DEMO VCC GND TRIG THRES DISCH CONT OUT RESET
+.ENDS TIMER_DEMO
+.end`
+
+const FAULT_NOTE = `* Demo fault variant: omit RESET→VCC jumper (loaded via app model)
+* Use Build → 555 + RESET fault button equivalent below`
+
 export function BuildMode() {
   const autoSet = useStore((s) => s.autoSet)
   const fitWires = useStore((s) => s.fitWires)
-  const generateWiresAction = useStore((s) => s.generateWires)
-  const undo = useStore((s) => s.undo)
-  const redo = useStore((s) => s.redo)
   const load555 = useStore((s) => s.load555)
   const rotateSelected = useStore((s) => s.rotateSelected)
-  const saveIdb = useStore((s) => s.saveIdb)
-  const loadIdb = useStore((s) => s.loadIdb)
-  const exportJson = useStore((s) => s.exportJson)
+  const removeSelected = useStore((s) => s.removeSelected)
+  const importJson = useStore((s) => s.importJson)
   const project = useStore((s) => s.project)
   const selectedIds = useStore((s) => s.selectedIds)
-  const status =
-    selectedIds[0]
-      ? `Selected ${project.circuit.components.find((c) => c.id === selectedIds[0])?.refDes ?? selectedIds[0]}. Drag on the board or Auto-set.`
-      : `${project.breadboard.placements.length} placed · ${project.breadboard.wires.filter((w) => w.valid).length} wires`
+  const [source, setSource] = useState(TIMER_NETLIST)
+  const [importMessage, setImportMessage] = useState(
+    'Load an example, then Auto-set.',
+  )
+  const [importError, setImportError] = useState(false)
+  const [showProposed, setShowProposed] = useState(true)
+
+  const status = useMemo(() => {
+    const sel = project.circuit.components.find((c) => c.id === selectedIds[0])
+    if (sel) return `Selected ${sel.refDes}. Choose an anchor hole or Auto-set.`
+    return `${project.breadboard.placements.length} parts placed · ${
+      project.breadboard.wires.filter((w) => w.valid).length
+    } jumpers.`
+  }, [project, selectedIds])
+
+  const loadTimer = (fault: boolean) => {
+    load555(fault)
+    setSource(fault ? `${TIMER_NETLIST}\n${FAULT_NOTE}` : TIMER_NETLIST)
+    setImportMessage(
+      fault
+        ? '555 RESET-fault circuit loaded into the electrical model.'
+        : '555 timer circuit loaded into the electrical model.',
+    )
+    setImportError(false)
+  }
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 gap-[18px] lg:grid-cols-[290px_minmax(0,1fr)]">
-      <aside className="flex min-h-0 flex-col gap-3.5 overflow-auto">
+    <main className="co-main">
+      <aside>
         <section className="panel">
-          <h2>Netlist / examples</h2>
-          <nav className="mb-2.5 flex flex-wrap gap-2">
-            <button type="button" onClick={() => load555(false)}>
+          <h2>Netlist</h2>
+          <nav>
+            <button type="button" onClick={() => loadTimer(false)}>
               555 timer
             </button>
-            <button type="button" onClick={() => load555(true)}>
+            <button type="button" onClick={() => loadTimer(true)}>
               555 + RESET fault
             </button>
           </nav>
-          <p className="muted mb-3 text-xs">
-            Supports resistors, capacitors, diodes/LEDs, DC sources, and one NE555
-            profile. Electrical model stays independent of placement.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => void saveIdb()}>
-              Save
+          <textarea
+            aria-label="SPICE netlist"
+            rows={10}
+            spellCheck={false}
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+          />
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+            <button
+              type="button"
+              className="primary"
+              onClick={() => {
+                // Netlist text is documentary for MVP; electrical model loads via examples.
+                loadTimer(source.includes('RESET fault') || source.includes('omit RESET'))
+                setImportMessage(
+                  'Imported example into Circuit Odyssey model (SPICE subset → 555 profile).',
+                )
+                setImportError(false)
+              }}
+            >
+              Import netlist
             </button>
-            <button type="button" onClick={() => void loadIdb()}>
-              Load
-            </button>
-            <button type="button" onClick={() => exportJson()}>
-              Export JSON
-            </button>
-            <label className="inline-flex cursor-pointer items-center rounded-lg border border-[var(--co-border-strong)] bg-[var(--co-surface-2)] px-2.5 py-2 text-sm hover:border-[var(--co-teal)] hover:text-[var(--co-teal)]">
-              Import
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <span
+                style={{
+                  background: '#111b2a',
+                  border: '1px solid #465874',
+                  borderRadius: 8,
+                  padding: 8,
+                }}
+              >
+                Import JSON
+              </span>
               <input
                 type="file"
                 accept="application/json,.json"
-                className="hidden"
+                hidden
                 onChange={async (e) => {
                   const file = e.target.files?.[0]
                   if (!file) return
-                  useStore.getState().importJson(await file.text())
+                  try {
+                    importJson(await file.text())
+                    setImportMessage('Project JSON imported.')
+                    setImportError(false)
+                  } catch (err) {
+                    setImportMessage(
+                      err instanceof Error ? err.message : String(err),
+                    )
+                    setImportError(true)
+                  }
                 }}
               />
             </label>
           </div>
-          <p className="status-ok mt-2 min-h-6 text-sm">{project.name}</p>
+          <p
+            className={`status${importError ? ' error' : ''}`}
+            role="status"
+          >
+            {importMessage}
+          </p>
+          <small>
+            Supports resistors, capacitors, diodes and LEDs, DC sources, and one
+            NE555 profile.
+          </small>
         </section>
 
-        <section className="panel min-h-0 flex-1">
+        <section className="panel">
           <h2>Parts tray</h2>
           <PartsTray />
         </section>
       </aside>
 
-      <div className="flex min-h-0 flex-col gap-3.5 overflow-auto">
+      <div>
         <section className="panel">
-          <div className="toolbar mb-2.5 flex flex-wrap items-center gap-2">
-            <h2 className="mr-auto mb-0">Breadboard</h2>
+          <div className="toolbar">
+            <h2>Breadboard</h2>
             <button type="button" onClick={() => rotateSelected()}>
-              Rotate
+              Rotate 180°
             </button>
-            <button type="button" onClick={() => generateWiresAction()}>
-              Gen wires
+            <button type="button" onClick={() => removeSelected()}>
+              Remove selected
             </button>
-            <button type="button" onClick={() => fitWires()}>
+            <button type="button" aria-keyshortcuts="F" onClick={() => fitWires()}>
               Fit wires
-            </button>
-            <button type="button" onClick={() => undo()}>
-              Undo
-            </button>
-            <button type="button" onClick={() => redo()}>
-              Redo
             </button>
             <button type="button" className="primary" onClick={() => autoSet()}>
               Auto-set
             </button>
           </div>
-          <p className="muted mb-2 text-sm">
-            Drag a part onto a hole, or select it and drop on an anchor. Hover a
-            part to inspect pins. Auto-set places a valid greedy layout.
+          <p className="muted">
+            Drag a part onto a hole, or select it and click a hole. Hover a part
+            to inspect its pins. Hold or drag it to reveal valid anchors. The
+            brighter preview shows where its pins will land.
           </p>
-          <div
-            className="mb-2.5 flex flex-wrap gap-x-4 gap-y-2 text-xs text-[var(--co-text-muted)]"
-            aria-label="Keyboard shortcuts"
-          >
+          <div className="shortcuts" aria-label="Keyboard shortcuts">
             <span>
               <kbd>R</kbd>Rotate
             </span>
@@ -114,37 +183,57 @@ export function BuildMode() {
               <kbd>F</kbd>Fit wires
             </span>
             <span>
-              <kbd>Esc</kbd>Clear selection
+              <kbd>Delete</kbd>Remove
+            </span>
+            <span>
+              <kbd>Esc</kbd>Cancel
             </span>
           </div>
-          <div className="scroll overflow-auto py-2">
-            <div className="h-[480px] min-w-[720px]">
-              <BreadboardSvg />
-            </div>
+          <div className="scroll">
+            <BreadboardBoard showProposed={showProposed} />
           </div>
-          <p className="status-ok mt-2 min-h-6 text-sm" role="status">
+          <p className="status" role="status">
             {status}
           </p>
         </section>
 
         <section className="panel">
-          <div className="toolbar mb-2.5 flex flex-wrap items-center gap-2">
-            <h2 className="mb-0">To-do</h2>
+          <div className="toolbar">
+            <h2>To-do</h2>
+            <label>
+              <input
+                type="checkbox"
+                checked={showProposed}
+                onChange={(e) => setShowProposed(e.target.checked)}
+              />{' '}
+              Show proposed wires
+            </label>
           </div>
           <AssemblyPanel embedded />
+          {!showProposed && (
+            <p className="muted" style={{ marginTop: 8 }}>
+              Proposed-wire overlay hidden (wiring still tracked in Suggested
+              jumpers).
+            </p>
+          )}
         </section>
 
-        <div className="reports grid gap-3.5 md:grid-cols-2">
+        <div className="reports">
           <section className="panel">
             <h2>Terminal → pin → hole</h2>
             <PinMapPanel />
           </section>
           <section className="panel">
             <h2>Suggested jumpers</h2>
+            <p className="muted">
+              Select a route to highlight its endpoints. Colored dotted lines
+              preview wires that need revision. Fit wires applies the current
+              plan. The first positive DC supply uses the top rails.
+            </p>
             <JumpersPanel />
           </section>
         </div>
       </div>
-    </div>
+    </main>
   )
 }

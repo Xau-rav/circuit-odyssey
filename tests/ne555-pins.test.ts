@@ -26,16 +26,20 @@ describe('NE555 DIP-8 pin map', () => {
     }
   })
 
-  it('places DIP-8 across the channel with correct physical pin holes', () => {
+  it('places DIP-8 horizontally across the channel (template legs)', () => {
     const board = build830Breadboard()
     const project = create555BlinkerProject()
     const u1 = project.circuit.components.find((c) => c.type === 'ne555')!
-    const placement = computePlacement(board, u1, 'E30', 0)
+    const placement = computePlacement(board, u1, 'E5', 0)
     expect(placement).not.toBeNull()
-    // Pin 1 GND → top strip at anchor column; pin 8 VCC → bottom strip same column
-    expect(placement!.pinHoleMap.p1).toBe('E30') // GND
-    expect(placement!.pinHoleMap.p8).toBe('F30') // VCC across channel
-    expect(placement!.pinHoleMap.p4).toBe('B30') // RESET
-    expect(placement!.pinHoleMap.p5).toBe('I30') // CONTROL
+    // Template: flip=false → pins 1–4 on F, pins 5–8 on E
+    expect(placement!.pinHoleMap.p1).toBe('F5') // GND
+    expect(placement!.pinHoleMap.p2).toBe('F6')
+    expect(placement!.pinHoleMap.p3).toBe('F7')
+    expect(placement!.pinHoleMap.p4).toBe('F8') // RESET
+    expect(placement!.pinHoleMap.p5).toBe('E8') // CONTROL
+    expect(placement!.pinHoleMap.p6).toBe('E7')
+    expect(placement!.pinHoleMap.p7).toBe('E6')
+    expect(placement!.pinHoleMap.p8).toBe('E5') // VCC
   })
 })

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { BuildMode } from './modes/BuildMode'
 import { DebugMode } from './modes/DebugMode'
 import { useStore } from '../state/store'
+import '../ui/theme/template.css'
 
 export default function App() {
   const mode = useStore((s) => s.mode)
@@ -12,6 +13,7 @@ export default function App() {
   const fitWires = useStore((s) => s.fitWires)
   const autoSet = useStore((s) => s.autoSet)
   const rotateSelected = useStore((s) => s.rotateSelected)
+  const removeSelected = useStore((s) => s.removeSelected)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -19,6 +21,7 @@ export default function App() {
       const typing =
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement ||
         (e.target instanceof HTMLElement && e.target.isContentEditable)
 
       if (meta && e.key.toLowerCase() === 'z' && !e.shiftKey) {
@@ -34,7 +37,7 @@ export default function App() {
       } else if (meta && e.key.toLowerCase() === 's') {
         e.preventDefault()
         void saveIdb()
-      } else if (typing || meta || e.altKey) {
+      } else if (typing || meta || e.altKey || e.shiftKey) {
         return
       } else if (e.key.toLowerCase() === 'f') {
         e.preventDefault()
@@ -45,6 +48,9 @@ export default function App() {
       } else if (e.key.toLowerCase() === 'r') {
         e.preventDefault()
         rotateSelected()
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        removeSelected()
       } else if (e.key === 'Escape') {
         useStore.getState().select([])
         useStore.getState().highlight([])
@@ -52,66 +58,47 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [undo, redo, saveIdb, fitWires, autoSet, rotateSelected])
+  }, [
+    undo,
+    redo,
+    saveIdb,
+    fitWires,
+    autoSet,
+    rotateSelected,
+    removeSelected,
+  ])
 
   return (
-    <div className="flex h-full flex-col">
-      <header className="mx-auto flex w-full max-w-[1250px] shrink-0 items-center gap-4 border-b border-[var(--co-border)] px-6 py-5">
-        <i
-          aria-hidden
-          className="not-italic rounded-xl bg-[var(--co-teal)] px-3 py-2 text-[22px] leading-none text-[var(--co-teal-ink)]"
-        >
-          ⌁
-        </i>
+    <div className="co-app flex h-full flex-col overflow-auto">
+      <header className="co-header">
+        <i aria-hidden="true">⌁</i>
         <div>
-          <h1 className="m-0 text-[25px] font-semibold tracking-tight text-[var(--co-text)]">
-            Circuit Odyssey
-          </h1>
-          <p className="m-0 text-sm text-[var(--co-text-muted)]">
-            From Circuit to Reality · SPICE-to-breadboard workbench
-          </p>
+          <h1>Circuit Odyssey</h1>
+          <p>SPICE-to-breadboard workbench</p>
         </div>
-
-        <nav className="ml-4 flex gap-2">
-          <ModeTab active={mode === 'build'} onClick={() => setMode('build')}>
+        <nav className="mode-tabs">
+          <button
+            type="button"
+            className={mode === 'build' ? 'primary' : undefined}
+            aria-pressed={mode === 'build'}
+            onClick={() => setMode('build')}
+          >
             Build
-          </ModeTab>
-          <ModeTab active={mode === 'debug'} onClick={() => setMode('debug')}>
+          </button>
+          <button
+            type="button"
+            className={mode === 'debug' ? 'primary' : undefined}
+            aria-pressed={mode === 'debug'}
+            onClick={() => setMode('debug')}
+          >
             Debug
-          </ModeTab>
+          </button>
         </nav>
-
-        <div className="ml-auto text-xs text-[var(--co-text-muted)]">
-          Chrome/Edge · Web Serial UNO Q
-        </div>
       </header>
 
-      <main className="min-h-0 flex-1 overflow-auto">
-        <div className="mx-auto h-full max-w-[1250px] px-6 py-4">
-          {mode === 'build' ? <BuildMode /> : <DebugMode />}
-        </div>
-      </main>
+      <div className="co-shell min-h-0 flex-1">
+        {mode === 'build' ? <BuildMode /> : <DebugMode />}
+      </div>
     </div>
-  )
-}
-
-function ModeTab({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={active ? 'primary' : undefined}
-    >
-      {children}
-    </button>
   )
 }

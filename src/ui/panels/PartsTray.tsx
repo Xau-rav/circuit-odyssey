@@ -9,7 +9,7 @@ export function PartsTray() {
   const placed = new Set(placements.map((p) => p.componentId))
 
   return (
-    <div className="tray grid gap-[7px]">
+    <div className="tray">
       {components.map((c) => {
         const def = getDefinition(c.type)
         const isPlaced = placed.has(c.id)
@@ -20,18 +20,11 @@ export function PartsTray() {
             type="button"
             aria-pressed={selected}
             onClick={() => select([c.id])}
-            className="text-left"
-            style={{
-              borderLeft: `4px solid ${def.color}`,
-              ['--part' as string]: def.color,
-            }}
+            style={{ ['--part' as string]: def.color }}
           >
-            <span className="font-mono text-[13px] font-semibold">{c.refDes}</span>
-            <span className="text-[var(--co-text-muted)]">
-              {' '}
-              · {c.type === 'ne555' ? 'NE555P profile' : c.value ?? def.label}
-              {isPlaced ? ' ✓' : ''}
-            </span>
+            {c.refDes} ·{' '}
+            {c.type === 'ne555' ? 'NE555P profile' : c.value ?? def.label}
+            {isPlaced ? ' ✓' : ''}
           </button>
         )
       })}
