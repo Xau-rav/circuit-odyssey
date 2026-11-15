@@ -215,7 +215,7 @@ export const useStore = create<OdysseyState>((set, get) => {
     autoSet: () => {
       get().pushHistory()
       const { project } = get()
-      const placements = autoSetPlacements(board, project.circuit.components)
+      const placements = autoSetPlacements(board, project.circuit)
       if (!placements.length) {
         set({
           boardStatus: {

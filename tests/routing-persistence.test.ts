@@ -13,7 +13,7 @@ describe('routing persistence', () => {
 
   it('generates wires for 555 nets after Auto-Set', () => {
     const project = create555BlinkerProject()
-    const placements = autoSetPlacements(board, project.circuit.components)
+    const placements = autoSetPlacements(board, project.circuit)
     expect(placements.length).toBeGreaterThan(0)
     const wires = generateWires(board, project.circuit, placements, [])
     expect(wires.some((w) => w.valid)).toBe(true)
@@ -21,7 +21,7 @@ describe('routing persistence', () => {
 
   it('marks only affected wires on move and Fit Wires restores links', () => {
     const project = create555BlinkerProject()
-    const placements = autoSetPlacements(board, project.circuit.components)
+    const placements = autoSetPlacements(board, project.circuit)
     let wires = generateWires(board, project.circuit, placements, [])
     expect(wires.length).toBeGreaterThan(0)
     const sample = wires.find((w) => w.valid)!
